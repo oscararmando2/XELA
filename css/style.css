@@ -694,3 +694,6 @@ p { margin-bottom: 1rem; }
   .contacto-actions { flex-direction: column; align-items: center; }
   .historia-stats { grid-template-columns: 1fr 1fr 1fr; }
 }
+
+/* Scroll reveal utility class */
+.revealed { opacity: 1 !important; transform: translateY(0) !important; }

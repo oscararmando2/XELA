@@ -74,9 +74,4 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Patch: define revealed class behavior via JS directly
-document.head.insertAdjacentHTML('beforeend', `
-  <style>
-    .revealed { opacity: 1 !important; transform: translateY(0) !important; }
-  </style>
-`);
+

@@ -87,7 +87,7 @@ function initSampleData() {
   setData('initialized', true);
 }
 
-function uid() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
 // ---- Formato dinero ----
 function fmt(n) { return '$' + parseFloat(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -107,7 +107,7 @@ function toast(msg, type = 'success') {
   const t = document.createElement('div');
   t.className = 'toast ' + (type === 'error' ? 'error' : type === 'warning' ? 'warning' : '');
   const icons = { success: '✅', error: '❌', warning: '⚠️' };
-  t.innerHTML = `${icons[type] || '✅'} ${msg}`;
+  t.textContent = `${icons[type] || '✅'} ${msg}`;
   container.appendChild(t);
   setTimeout(() => t.remove(), 3100);
 }
@@ -855,7 +855,11 @@ function loadRoute() {
   // Route stops list
   const routeStops = document.getElementById('routeStops');
   if (stops.length === 0) {
-    routeStops.innerHTML = `<p class="empty-msg">Sin entregas para ${date || 'la fecha seleccionada'}</p>`;
+    const p = document.createElement('p');
+    p.className = 'empty-msg';
+    p.textContent = `Sin entregas para ${date || 'la fecha seleccionada'}`;
+    routeStops.innerHTML = '';
+    routeStops.appendChild(p);
   } else {
     routeStops.innerHTML = stops.map(s =>
       `<div class="route-stop ${s.order.status === 'entregado' ? 'done' : ''}">
