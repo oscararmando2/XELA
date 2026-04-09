@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema Interno — Xela Tortillería</title>
+  <link rel="stylesheet" href="../css/system.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">🌽</div>
+      <h1 class="login-title">Xela Tortillería</h1>
+      <p class="login-subtitle">Sistema Interno de Gestión</p>
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label for="loginPassword">Contraseña</label>
+          <input type="password" id="loginPassword" placeholder="Ingresa la contraseña" autocomplete="current-password" />
+        </div>
+        <div id="loginError" class="login-error" style="display:none;">Contraseña incorrecta. Inténtalo de nuevo.</div>
+        <button type="submit" class="btn-login">Entrar al Sistema</button>
+      </form>
+      <a href="../" class="login-back">← Volver al sitio público</a>
+    </div>
+  </div>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <div id="dashboard" class="dashboard" style="display:none;">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">🌽</div>
+        <div class="sidebar-brand">
+          <strong>Xela Tortillería</strong>
+          <span>Sistema Interno</span>
+        </div>
+        <button class="sidebar-close" id="sidebarClose">✕</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-module="resumen">
+          <span class="nav-icon">📊</span> Resumen
+        </a>
+        <a href="#" class="nav-item" data-module="pos">
+          <span class="nav-icon">🛒</span> Punto de Venta
+        </a>
+        <a href="#" class="nav-item" data-module="contador">
+          <span class="nav-icon">💰</span> Contador Diario
+        </a>
+        <a href="#" class="nav-item" data-module="inventario">
+          <span class="nav-icon">📦</span> Inventario
+        </a>
+        <a href="#" class="nav-item" data-module="crm">
+          <span class="nav-icon">👥</span> CRM + Entregas
+        </a>
+        <a href="#" class="nav-item" data-module="reportes">
+          <span class="nav-icon">📈</span> Reportes
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button id="logoutBtn" class="btn-logout">🚪 Cerrar Sesión</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Topbar -->
+      <header class="topbar">
+        <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+        <div class="topbar-title" id="topbarTitle">Resumen</div>
+        <div class="topbar-info">
+          <span id="topbarDate"></span>
+          <span class="topbar-badge" id="lowStockBadge" style="display:none;">⚠️ Stock bajo</span>
+        </div>
+      </header>
+
+      <!-- Modules Container -->
+      <div class="modules-wrap" id="modulesWrap">
+
+        <!-- ============================================================
+             MÓDULO: RESUMEN
+             ============================================================ -->
+        <section class="module active" id="mod-resumen">
+          <h2 class="module-title">Resumen del Día</h2>
+          <div class="summary-grid" id="summaryGrid">
+            <div class="summary-card green">
+              <div class="sc-icon">💵</div>
+              <div class="sc-label">Ingresos Hoy</div>
+              <div class="sc-value" id="sum-ingresos">$0</div>
+            </div>
+            <div class="summary-card red">
+              <div class="sc-icon">🧾</div>
+              <div class="sc-label">Gastos Hoy</div>
+              <div class="sc-value" id="sum-gastos">$0</div>
+            </div>
+            <div class="summary-card blue">
+              <div class="sc-icon">🏦</div>
+              <div class="sc-label">Efectivo en Caja</div>
+              <div class="sc-value" id="sum-caja">$0</div>
+            </div>
+            <div class="summary-card yellow">
+              <div class="sc-icon">📊</div>
+              <div class="sc-label">Utilidad del Día</div>
+              <div class="sc-value" id="sum-utilidad">$0</div>
+            </div>
+            <div class="summary-card purple">
+              <div class="sc-icon">🎯</div>
+              <div class="sc-label">Punto de Equilibrio</div>
+              <div class="sc-value" id="sum-equilibrio">Calculando...</div>
+            </div>
+            <div class="summary-card orange">
+              <div class="sc-icon">🥇</div>
+              <div class="sc-label">Más Vendida (Semana)</div>
+              <div class="sc-value" id="sum-top-product">—</div>
+            </div>
+          </div>
+          <div class="resumen-row">
+            <div class="recent-sales">
+              <h3>Últimas Ventas</h3>
+              <div id="recentSalesList" class="recent-list"></div>
+            </div>
+            <div class="recent-trans">
+              <h3>Últimas Transacciones</h3>
+              <div id="recentTransList" class="recent-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================================
+             MÓDULO: PUNTO DE VENTA
+             ============================================================ -->
+        <section class="module" id="mod-pos">
+          <h2 class="module-title">Punto de Venta</h2>
+          <div class="pos-layout">
+            <div class="pos-products">
+              <h3>Seleccionar Producto</h3>
+              <div class="product-buttons" id="productButtons"></div>
+            </div>
+            <div class="pos-order">
+              <h3>Orden Actual</h3>
+              <div class="order-items" id="orderItems">
+                <p class="empty-msg">Agrega productos para comenzar</p>
+              </div>
+              <div class="order-total">
+                <div class="order-total-row">
+                  <span>Subtotal:</span>
+                  <strong id="orderSubtotal">$0.00</strong>
+                </div>
+                <div class="payment-section">
+                  <label>Método de pago:</label>
+                  <div class="payment-btns">
+                    <button class="pay-btn active" data-method="efectivo">💵 Efectivo</button>
+                    <button class="pay-btn" data-method="transferencia">📲 Transferencia</button>
+                  </div>
+                  <div id="cashPaySection">
+                    <label>Monto recibido: $</label>
+                    <input type="number" id="cashReceived" placeholder="0.00" min="0" step="0.5" />
+                    <div class="change-display">
+                      Cambio: <strong id="changeDisplay">$0.00</strong>
+                    </div>
+                  </div>
+                </div>
+                <button class="btn-confirm-sale" id="confirmSaleBtn">✅ Confirmar Venta</button>
+                <button class="btn-clear-order" id="clearOrderBtn">🗑️ Limpiar Orden</button>
+              </div>
+            </div>
+          </div>
+          <div class="sales-history">
+            <div class="sales-history-header">
+              <h3>Ventas del Día</h3>
+              <span id="salesTodayTotal" class="badge-total">Total: $0</span>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" id="salesTodayTable">
+                <thead>
+                  <tr><th>Hora</th><th>Producto</th><th>Cantidad</th><th>Precio</th><th>Total</th><th>Pago</th></tr>
+                </thead>
+                <tbody id="salesTodayBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================================
+             MÓDULO: CONTADOR DIARIO
+             ============================================================ -->
+        <section class="module" id="mod-contador">
+          <h2 class="module-title">Contador Diario</h2>
+          <div class="contador-top">
+            <div class="contador-cards">
+              <div class="cnt-card income">
+                <span class="cnt-label">💵 Total Ingresos</span>
+                <span class="cnt-value" id="cntTotalIncome">$0.00</span>
+              </div>
+              <div class="cnt-card expense">
+                <span class="cnt-label">🧾 Total Gastos</span>
+                <span class="cnt-value" id="cntTotalExpense">$0.00</span>
+              </div>
+              <div class="cnt-card cash">
+                <span class="cnt-label">🏦 Efectivo en Caja</span>
+                <span class="cnt-value" id="cntCash">$0.00</span>
+              </div>
+              <div class="cnt-card profit">
+                <span class="cnt-label">📊 Utilidad</span>
+                <span class="cnt-value" id="cntProfit">$0.00</span>
+              </div>
+              <div class="cnt-card breakeven">
+                <span class="cnt-label">🎯 Punto de Equilibrio</span>
+                <span class="cnt-value" id="cntBreakeven">Calculando...</span>
+                <span class="cnt-hint" id="cntBreakevenHint"></span>
+              </div>
+            </div>
+            <div class="contador-form">
+              <h3>Registrar Movimiento</h3>
+              <form id="transactionForm">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Tipo</label>
+                    <select id="txType">
+                      <option value="ingreso">💵 Ingreso</option>
+                      <option value="gasto">🧾 Gasto</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Monto ($)</label>
+                    <input type="number" id="txAmount" placeholder="0.00" min="0" step="0.01" required />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Descripción (ej. sueldo, gas, compra masa)</label>
+                  <input type="text" id="txDesc" placeholder="Descripción del movimiento" required />
+                </div>
+                <div class="form-group">
+                  <label>Fecha</label>
+                  <input type="date" id="txDate" />
+                </div>
+                <button type="submit" class="btn-primary-sys">➕ Registrar</button>
+              </form>
+            </div>
+          </div>
+          <div class="transactions-section">
+            <div class="tx-header">
+              <h3>Historial de Movimientos</h3>
+              <div class="tx-filters">
+                <input type="date" id="txFilterDate" />
+                <select id="txFilterType">
+                  <option value="">Todos</option>
+                  <option value="ingreso">Ingresos</option>
+                  <option value="gasto">Gastos</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" id="txTable">
+                <thead>
+                  <tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Monto</th><th>Acción</th></tr>
+                </thead>
+                <tbody id="txTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================================
+             MÓDULO: INVENTARIO
+             ============================================================ -->
+        <section class="module" id="mod-inventario">
+          <h2 class="module-title">Inventario de Materias Primas</h2>
+          <div class="inv-layout">
+            <div class="inv-form">
+              <h3>Registrar / Actualizar Material</h3>
+              <form id="inventoryForm">
+                <div class="form-group">
+                  <label>Nombre del material</label>
+                  <input type="text" id="invName" placeholder="ej. Masa de maíz, Moringa en polvo" required />
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Cantidad</label>
+                    <input type="number" id="invQty" placeholder="0" min="0" step="0.1" required />
+                  </div>
+                  <div class="form-group">
+                    <label>Unidad</label>
+                    <select id="invUnit">
+                      <option value="kg">kg</option>
+                      <option value="g">g</option>
+                      <option value="L">L</option>
+                      <option value="pz">pz</option>
+                      <option value="bolsa">bolsa</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Alerta de stock mínimo</label>
+                  <input type="number" id="invThreshold" placeholder="5" min="0" step="0.1" required />
+                </div>
+                <div class="form-group">
+                  <label>Costo unitario ($)</label>
+                  <input type="number" id="invCost" placeholder="0.00" min="0" step="0.01" />
+                </div>
+                <button type="submit" class="btn-primary-sys">💾 Guardar</button>
+              </form>
+            </div>
+            <div class="inv-list">
+              <div class="inv-list-header">
+                <h3>Stock Actual</h3>
+                <div class="inv-legend">
+                  <span class="legend-ok">✅ Normal</span>
+                  <span class="legend-low">⚠️ Bajo</span>
+                  <span class="legend-out">🚨 Agotado</span>
+                </div>
+              </div>
+              <div id="inventoryList" class="inventory-cards"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================================
+             MÓDULO: CRM + ENTREGAS
+             ============================================================ -->
+        <section class="module" id="mod-crm">
+          <h2 class="module-title">CRM + Entregas</h2>
+          <div class="crm-tabs">
+            <button class="crm-tab active" data-crm="clientes">👥 Clientes</button>
+            <button class="crm-tab" data-crm="pedidos">📋 Pedidos</button>
+            <button class="crm-tab" data-crm="ruta">🗺️ Mapa de Ruta</button>
+          </div>
+
+          <!-- Clientes -->
+          <div class="crm-panel active" id="crm-clientes">
+            <div class="crm-layout">
+              <div class="crm-form">
+                <h3>Registrar Cliente</h3>
+                <form id="clientForm">
+                  <div class="form-group">
+                    <label>Nombre completo</label>
+                    <input type="text" id="cliName" placeholder="Nombre del cliente" required />
+                  </div>
+                  <div class="form-group">
+                    <label>WhatsApp / Teléfono</label>
+                    <input type="tel" id="cliPhone" placeholder="443 000 0000" />
+                  </div>
+                  <div class="form-group">
+                    <label>Dirección de entrega</label>
+                    <input type="text" id="cliAddress" placeholder="Calle, Colonia, Referencias" />
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>Latitud (opcional)</label>
+                      <input type="number" id="cliLat" placeholder="19.43" step="0.00001" />
+                    </div>
+                    <div class="form-group">
+                      <label>Longitud (opcional)</label>
+                      <input type="number" id="cliLng" placeholder="-100.35" step="0.00001" />
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Notas / Preferencias</label>
+                    <textarea id="cliNotes" placeholder="Notas especiales, preferencias..." rows="2"></textarea>
+                  </div>
+                  <button type="submit" class="btn-primary-sys">👤 Guardar Cliente</button>
+                </form>
+              </div>
+              <div class="crm-client-list">
+                <h3>Lista de Clientes</h3>
+                <input type="text" id="cliSearch" class="search-input" placeholder="🔍 Buscar cliente..." />
+                <div id="clientList" class="client-cards"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pedidos -->
+          <div class="crm-panel" id="crm-pedidos">
+            <div class="crm-layout">
+              <div class="crm-form">
+                <h3>Registrar Pedido</h3>
+                <form id="orderForm">
+                  <div class="form-group">
+                    <label>Cliente</label>
+                    <select id="orderClient" required>
+                      <option value="">— Seleccionar cliente —</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Producto</label>
+                    <select id="orderProduct" required>
+                      <option value="">— Seleccionar —</option>
+                    </select>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>Cantidad (kg)</label>
+                      <input type="number" id="orderQty" placeholder="1" min="0.5" step="0.5" required />
+                    </div>
+                    <div class="form-group">
+                      <label>Fecha de entrega</label>
+                      <input type="date" id="orderDate" required />
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Notas</label>
+                    <input type="text" id="orderNotes" placeholder="Instrucciones especiales" />
+                  </div>
+                  <button type="submit" class="btn-primary-sys">📋 Registrar Pedido</button>
+                </form>
+              </div>
+              <div class="crm-order-list">
+                <h3>Pedidos Activos</h3>
+                <div id="orderList" class="order-cards"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mapa de Ruta -->
+          <div class="crm-panel" id="crm-ruta">
+            <div class="map-controls">
+              <h3>Mapa de Entregas — Zitácuaro</h3>
+              <div class="map-date-filter">
+                <label>Fecha de ruta:</label>
+                <input type="date" id="mapDateFilter" />
+                <button id="loadRouteBtn" class="btn-primary-sys">🗺️ Cargar Ruta</button>
+              </div>
+            </div>
+            <div id="deliveryMap" class="delivery-map"></div>
+            <div class="route-list">
+              <h4>Paradas del día</h4>
+              <div id="routeStops" class="route-stops"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================================
+             MÓDULO: REPORTES
+             ============================================================ -->
+        <section class="module" id="mod-reportes">
+          <h2 class="module-title">Reportes Semanales</h2>
+          <div class="report-controls">
+            <div class="report-week-selector">
+              <label>Seleccionar semana:</label>
+              <input type="week" id="reportWeek" />
+              <button id="generateReportBtn" class="btn-primary-sys">📈 Generar Reporte</button>
+            </div>
+          </div>
+          <div id="reportContent" class="report-content" style="display:none;">
+            <div class="report-header-card">
+              <div class="report-period" id="reportPeriod"></div>
+              <div class="report-generated">Generado: <span id="reportGenerated"></span></div>
+            </div>
+            <div class="report-kpis" id="reportKpis"></div>
+            <div class="report-charts">
+              <div class="report-chart-card">
+                <h4>Ventas por Variedad</h4>
+                <div id="reportByProduct" class="chart-bars"></div>
+              </div>
+              <div class="report-chart-card">
+                <h4>Ingresos vs Gastos por Día</h4>
+                <div id="reportDailyChart" class="chart-bars"></div>
+              </div>
+            </div>
+            <div class="report-table-section">
+              <h4>Detalle de Transacciones</h4>
+              <div class="table-wrap">
+                <table class="data-table" id="reportTxTable">
+                  <thead>
+                    <tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Monto</th></tr>
+                  </thead>
+                  <tbody id="reportTxBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="report-conclusion" id="reportConclusion"></div>
+          </div>
+          <div id="reportPlaceholder" class="report-placeholder">
+            <div class="report-ph-icon">📈</div>
+            <p>Selecciona una semana y haz clic en "Generar Reporte" para ver el resumen.</p>
+            <p class="muted">Los reportes semanales se generan automáticamente cada lunes.</p>
+          </div>
+        </section>
+
+      </div><!-- /modules-wrap -->
+    </div><!-- /main-content -->
+  </div><!-- /dashboard -->
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="../js/system.js"></script>
+</body>
+</html>
