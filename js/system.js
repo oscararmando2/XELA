@@ -7,10 +7,10 @@ const PASSWORD = 'xela2024';
 
 // ---- Productos del catálogo ----
 const PRODUCTS = [
-  { id: 'maiz',    name: 'Tortilla de Maíz',         price: 18, unit: 'kg', emoji: '🌽' },
-  { id: 'moringa', name: 'Tortilla de Moringa',       price: 22, unit: 'kg', emoji: '🌿' },
-  { id: 'nopal',   name: 'Tortilla de Nopal',         price: 20, unit: 'kg', emoji: '🌵' },
-  { id: 'pasilla', name: 'Tortilla de Chile Pasilla', price: 24, unit: 'kg', emoji: '🌶️' },
+  { id: 'maiz',    name: 'Tortilla de Maíz',         price: 18, unit: 'docena', emoji: '🌽' },
+  { id: 'moringa', name: 'Tortilla de Moringa',       price: 22, unit: 'docena', emoji: '🌿' },
+  { id: 'nopal',   name: 'Tortilla de Nopal',         price: 20, unit: 'docena', emoji: '🌵' },
+  { id: 'pasilla', name: 'Tortilla de Chile Pasilla', price: 24, unit: 'docena', emoji: '🌶️' },
 ];
 
 // ---- Almacenamiento ----
@@ -28,11 +28,11 @@ function initSampleData() {
 
   // Inventario inicial
   const inventory = [
-    { id: 'masa_maiz',    name: 'Masa de maíz',        qty: 25,  unit: 'kg', threshold: 10, cost: 12 },
-    { id: 'moringa_polvo', name: 'Moringa en polvo',   qty: 3.5, unit: 'kg', threshold: 2,  cost: 180 },
-    { id: 'nopal_fresco',  name: 'Nopal fresco',       qty: 8,   unit: 'kg', threshold: 5,  cost: 15 },
-    { id: 'chile_pasilla', name: 'Chile pasilla seco', qty: 1.5, unit: 'kg', threshold: 2,  cost: 80 },
-    { id: 'cal',           name: 'Cal',                qty: 10,  unit: 'kg', threshold: 3,  cost: 5 },
+    { id: 'masa_maiz',    name: 'Masa de maíz',        qty: 25,  unit: 'docena', threshold: 10, cost: 12 },
+    { id: 'moringa_polvo', name: 'Moringa en polvo',   qty: 3.5, unit: 'docena', threshold: 2,  cost: 180 },
+    { id: 'nopal_fresco',  name: 'Nopal fresco',       qty: 8,   unit: 'docena', threshold: 5,  cost: 15 },
+    { id: 'chile_pasilla', name: 'Chile pasilla seco', qty: 1.5, unit: 'docena', threshold: 2,  cost: 80 },
+    { id: 'cal',           name: 'Cal',                qty: 10,  unit: 'docena', threshold: 3,  cost: 5 },
     { id: 'gas',           name: 'Gas LP',             qty: 1,   unit: 'pz', threshold: 1,  cost: 300 },
   ];
   setData('inventory', inventory);
@@ -222,13 +222,13 @@ function renderResumen() {
   const avgPrice = PRODUCTS.reduce((a, p) => a + p.price, 0) / PRODUCTS.length;
   const avgCost = avgPrice * 0.45; // assume 45% COGS
   const margin = avgPrice - avgCost;
-  const breakEvenKg = gastos > 0 && margin > 0 ? (gastos / margin).toFixed(1) : '0';
+  const breakEven = gastos > 0 && margin > 0 ? (gastos / margin).toFixed(1) : '0';
 
   document.getElementById('sum-ingresos').textContent = fmt(ingresos);
   document.getElementById('sum-gastos').textContent = fmt(gastos);
   document.getElementById('sum-caja').textContent = fmt(caja);
   document.getElementById('sum-utilidad').textContent = fmt(utilidad);
-  document.getElementById('sum-equilibrio').textContent = breakEvenKg + ' kg';
+  document.getElementById('sum-equilibrio').textContent = breakEven + ' docenas';
 
   // Top product this week
   const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
@@ -246,7 +246,7 @@ function renderResumen() {
   } else {
     rsl.innerHTML = recentSales.map(s =>
       `<div class="recent-item">
-        <span class="ri-label">${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')} — ${s.qty}kg</span>
+        <span class="ri-label">${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')} — ${s.qty} docenas</span>
         <span class="ri-value green">${fmt(s.total)}</span>
       </div>`
     ).join('');
@@ -308,7 +308,7 @@ function renderProductButtons() {
     const stockInfo = invItem ? `${invItem.qty} ${invItem.unit} disponibles` : '';
     return `<button class="product-btn" onclick="addToOrder('${p.id}')">
       <span class="pb-name">${p.emoji} ${p.name.replace('Tortilla de ', '')}</span>
-      <span class="pb-price">${fmt(p.price)} / kg</span>
+      <span class="pb-price">${fmt(p.price)} / docena</span>
       ${stockInfo ? `<span class="pb-qty">📦 ${stockInfo}</span>` : ''}
     </button>`;
   }).join('');
@@ -341,7 +341,7 @@ function renderOrderItems() {
       <span>${item.emoji} ${item.productName.replace('Tortilla de ', '')}</span>
       <div class="oi-controls">
         <button class="oi-btn" onclick="changeQty(${idx}, -0.5)">−</button>
-        <span class="oi-qty">${item.qty}kg</span>
+        <span class="oi-qty">${item.qty} docenas</span>
         <button class="oi-btn" onclick="changeQty(${idx}, 0.5)">+</button>
         <span style="min-width:60px;text-align:right;font-weight:600;">${fmt(item.total)}</span>
         <button class="oi-btn" style="color:var(--sys-red)" onclick="removeItem(${idx})">✕</button>
@@ -407,8 +407,8 @@ function renderSalesToday() {
     `<tr>
       <td>${s.time}</td>
       <td>${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')}</td>
-      <td>${s.qty} kg</td>
-      <td>${fmt(s.price)}/kg</td>
+      <td>${s.qty} docenas</td>
+      <td>${fmt(s.price)}/docena</td>
       <td><strong>${fmt(s.total)}</strong></td>
       <td>${s.payment === 'efectivo' ? '💵' : '📲'} ${s.payment}</td>
     </tr>`
@@ -477,15 +477,15 @@ function renderContador() {
   const avgPrice = PRODUCTS.reduce((a, p) => a + p.price, 0) / PRODUCTS.length;
   const margin = avgPrice * 0.55; // 55% gross margin
   const be = todayExpense > 0 && margin > 0 ? (todayExpense / margin).toFixed(1) : '0';
-  const todaySalesKg = todaySales.reduce((a, s) => a + s.qty, 0);
-  document.getElementById('cntBreakeven').textContent = be + ' kg';
-  const diff = todaySalesKg - parseFloat(be);
+  const todaySalesDocenas = todaySales.reduce((a, s) => a + s.qty, 0);
+  document.getElementById('cntBreakeven').textContent = be + ' docenas';
+  const diff = todaySalesDocenas - parseFloat(be);
   if (parseFloat(be) === 0) {
     document.getElementById('cntBreakevenHint').textContent = 'Sin gastos registrados hoy';
   } else if (diff >= 0) {
-    document.getElementById('cntBreakevenHint').textContent = `✅ Superado por ${diff.toFixed(1)} kg (${fmt(diff * avgPrice)})`;
+    document.getElementById('cntBreakevenHint').textContent = `✅ Superado por ${diff.toFixed(1)} docenas (${fmt(diff * avgPrice)})`;
   } else {
-    document.getElementById('cntBreakevenHint').textContent = `⚠️ Faltan ${Math.abs(diff).toFixed(1)} kg para cubrir gastos`;
+    document.getElementById('cntBreakevenHint').textContent = `⚠️ Faltan ${Math.abs(diff).toFixed(1)} docenas para cubrir gastos`;
   }
 
   renderTransactionTable();
@@ -749,7 +749,7 @@ function renderOrderList() {
       <div class="order-card-header">
         <div>
           <div class="order-client-name">👤 ${o.clientName}</div>
-          <div class="order-detail">📦 ${o.productName.replace('Tortilla de ','')} — ${o.qty} kg — ${fmt(o.total)}</div>
+          <div class="order-detail">📦 ${o.productName.replace('Tortilla de ','')} — ${o.qty} docenas — ${fmt(o.total)}</div>
           <div class="order-detail">📅 Entrega: ${o.date}</div>
           ${o.clientAddress ? `<div class="order-detail">📍 ${o.clientAddress}</div>` : ''}
           ${o.notes ? `<div class="order-detail">"${o.notes}"</div>` : ''}
@@ -838,7 +838,7 @@ function loadRoute() {
         className: '', iconSize: [28, 28], iconAnchor: [14, 14],
       });
       const marker = L.marker([client.lat, client.lng], { icon }).addTo(deliveryMap);
-      marker.bindPopup(`<strong>${i+1}. ${client.name}</strong><br/>${order.productName.replace('Tortilla de ','')}: ${order.qty}kg<br/>📍 ${client.address || ''}<br/><span style="color:${order.status==='entregado'?'green':'orange'}">${order.status}</span>`);
+      marker.bindPopup(`<strong>${i+1}. ${client.name}</strong><br/>${order.productName.replace('Tortilla de ','')}: ${order.qty} docenas<br/>📍 ${client.address || ''}<br/><span style="color:${order.status==='entregado'?'green':'orange'}">${order.status}</span>`);
       deliveryMarkers.push(marker);
       stops.push({ order, client, num: i + 1 });
     }
@@ -866,7 +866,7 @@ function loadRoute() {
         <div class="stop-num">${s.num}</div>
         <div class="stop-info">
           <div class="stop-name">${s.client.name}</div>
-          <div class="stop-addr">${s.client.address || ''} — ${s.order.productName.replace('Tortilla de ','')} ${s.order.qty}kg</div>
+          <div class="stop-addr">${s.client.address || ''} — ${s.order.productName.replace('Tortilla de ','')} ${s.order.qty} docenas</div>
         </div>
         ${s.order.status !== 'entregado'
           ? `<button class="stop-complete-btn" onclick="markDelivered('${s.order.id}')">✅ Listo</button>`
@@ -948,7 +948,7 @@ function generateReport() {
     <div class="report-kpi green"><div class="rk-label">💵 Total Ventas</div><div class="rk-value">${fmt(totalSales)}</div></div>
     <div class="report-kpi red"><div class="rk-label">🧾 Total Gastos</div><div class="rk-value">${fmt(totalExpense)}</div></div>
     <div class="report-kpi purple"><div class="rk-label">📊 Utilidad Neta</div><div class="rk-value" style="color:${netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(netProfit)}</div></div>
-    <div class="report-kpi orange"><div class="rk-label">📦 kg Vendidos</div><div class="rk-value">${sales.reduce((a,s)=>a+s.qty,0).toFixed(1)} kg</div></div>
+    <div class="report-kpi orange"><div class="rk-label">📦 Docenas Vendidas</div><div class="rk-value">${sales.reduce((a,s)=>a+s.qty,0).toFixed(1)} docenas</div></div>
   `;
 
   // By product chart
@@ -960,7 +960,7 @@ function generateReport() {
   const maxQty = Math.max(...Object.values(byProduct).map(p => p.qty), 0.1);
   document.getElementById('reportByProduct').innerHTML = Object.values(byProduct).map(p =>
     `<div class="chart-bar-item">
-      <div class="chart-bar-label"><span>${p.emoji} ${p.name}</span><span>${p.qty.toFixed(1)} kg — ${fmt(p.total)}</span></div>
+      <div class="chart-bar-label"><span>${p.emoji} ${p.name}</span><span>${p.qty.toFixed(1)} docenas — ${fmt(p.total)}</span></div>
       <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(p.qty/maxQty*100).toFixed(1)}%"></div></div>
     </div>`
   ).join('');
@@ -992,7 +992,7 @@ function generateReport() {
 
   // Transaction table
   const allTx = [
-    ...sales.map(s => ({ date: s.date, type: 'ingreso', desc: `${s.productName.replace('Tortilla de ','')} ${s.qty}kg`, amount: s.total })),
+    ...sales.map(s => ({ date: s.date, type: 'ingreso', desc: `${s.productName.replace('Tortilla de ','')} ${s.qty} docenas`, amount: s.total })),
     ...transactions.map(t => ({ date: t.date, type: t.type, desc: t.desc, amount: t.amount }))
   ].sort((a, b) => b.date.localeCompare(a.date));
 
@@ -1014,7 +1014,7 @@ function generateReport() {
     <p>
       Durante esta semana se generaron <strong>${fmt(totalSales)}</strong> en ventas con gastos de <strong>${fmt(totalExpense)}</strong>,
       resultando en una <strong style="color:${netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">utilidad neta de ${fmt(netProfit)}</strong>.
-      ${bestProduct && bestProduct.qty > 0 ? `La variedad más vendida fue <strong>${bestProduct.emoji} ${bestProduct.name}</strong> con ${bestProduct.qty.toFixed(1)} kg vendidos.` : ''}
+      ${bestProduct && bestProduct.qty > 0 ? `La variedad más vendida fue <strong>${bestProduct.emoji} ${bestProduct.name}</strong> con ${bestProduct.qty.toFixed(1)} docenas vendidas.` : ''}
       ${netProfit < 0 ? '⚠️ Esta semana los gastos superaron los ingresos. Se recomienda revisar los costos operativos.' : '✅ Semana rentable. ¡Buen trabajo!'}
     </p>
   `;
