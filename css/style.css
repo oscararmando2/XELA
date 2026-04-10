@@ -4,15 +4,15 @@
 
 /* ---- Variables ---- */
 :root {
-  --color-primary: #8B4513;
-  --color-primary-dark: #6B2F0A;
-  --color-secondary: #2D6A0F;
-  --color-accent: #D4900A;
-  --color-gold: #DAA520;
-  --color-bg: #FFF8EF;
-  --color-bg-alt: #FFF3E0;
-  --color-text: #3D2B1F;
-  --color-text-light: #6B5444;
+  --color-primary: #E63200;
+  --color-primary-dark: #B82800;
+  --color-secondary: #1E7228;
+  --color-accent: #F5A800;
+  --color-gold: #F5A800;
+  --color-bg: #FFFFFF;
+  --color-bg-alt: #F9F9F9;
+  --color-text: #1A1A1A;
+  --color-text-light: #555555;
   --color-whatsapp: #25D366;
   --color-whatsapp-dark: #128C7E;
   --font-heading: 'Playfair Display', Georgia, serif;
@@ -134,7 +134,7 @@ p { margin-bottom: 1rem; }
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 1000;
-  background: rgba(255, 248, 239, 0.95);
+  background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(10px);
   box-shadow: 0 1px 10px rgba(0,0,0,0.1);
   transition: all var(--transition);
@@ -156,6 +156,11 @@ p { margin-bottom: 1rem; }
   font-size: 1.3rem;
   font-weight: 700;
   color: var(--color-primary);
+}
+.brand-logo {
+  height: 42px;
+  width: auto;
+  display: block;
 }
 .brand-icon { font-size: 1.6rem; }
 .nav-links {
@@ -192,11 +197,11 @@ p { margin-bottom: 1rem; }
   min-height: 100vh;
   background: linear-gradient(
     135deg,
-    #3D1A02 0%,
-    #6B2F0A 25%,
-    #8B4513 50%,
-    #A0522D 70%,
-    #2D6A0F 100%
+    #8C1500 0%,
+    #B82800 20%,
+    #E63200 45%,
+    #C47000 70%,
+    #1E7228 100%
   );
   position: relative;
   display: flex;
@@ -211,8 +216,8 @@ p { margin-bottom: 1rem; }
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(circle at 20% 80%, rgba(218, 165, 32, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(45, 106, 15, 0.2) 0%, transparent 50%);
+    radial-gradient(circle at 20% 80%, rgba(245, 168, 0, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(30, 114, 40, 0.25) 0%, transparent 50%);
   pointer-events: none;
 }
 .hero-overlay {
@@ -298,7 +303,7 @@ p { margin-bottom: 1rem; }
   box-shadow: var(--shadow-lg);
 }
 .historia-img-placeholder {
-  background: linear-gradient(135deg, #FFF3CD, #FFE0B2);
+  background: linear-gradient(135deg, #FFF0E0, #FFE4B0);
   height: 380px;
   display: flex;
   flex-direction: column;
@@ -455,10 +460,10 @@ p { margin-bottom: 1rem; }
 }
 .precios-table td {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #F5EBE0;
+  border-bottom: 1px solid #EEEEEE;
 }
 .precios-table tr:last-child td { border-bottom: none; }
-.precios-table tr:hover td { background: #FFF9F0; }
+.precios-table tr:hover td { background: #FFF5F0; }
 .emoji-td { margin-right: 0.5rem; font-size: 1.1rem; }
 .precios-notas {
   display: grid;
@@ -534,7 +539,7 @@ p { margin-bottom: 1rem; }
    ========================================== */
 .section-contacto {
   padding: 6rem 0;
-  background: linear-gradient(135deg, var(--color-primary-dark), var(--color-secondary));
+  background: linear-gradient(135deg, #8C1500, #1E7228);
   position: relative;
   overflow: hidden;
 }
@@ -559,7 +564,7 @@ p { margin-bottom: 1rem; }
    FOOTER
    ========================================== */
 .footer {
-  background: #1A0A00;
+  background: #0F1F0F;
   color: rgba(255,255,255,0.75);
   padding: 4rem 0 2rem;
 }
@@ -574,6 +579,16 @@ p { margin-bottom: 1rem; }
   font-size: 1.5rem;
   color: var(--color-gold);
   margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.footer-logo-img {
+  height: 36px;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+  filter: brightness(0) invert(1);
 }
 .footer-brand p {
   font-size: 0.92rem;
@@ -676,14 +691,14 @@ p { margin-bottom: 1rem; }
     top: 68px;
     left: 0;
     right: 0;
-    background: var(--color-bg);
+    background: #fff;
     flex-direction: column;
     padding: 1rem 1.5rem 1.5rem;
     box-shadow: 0 8px 20px rgba(0,0,0,0.1);
     gap: 0;
   }
   .nav-links.open { display: flex; }
-  .nav-links a { padding: 0.75rem 0.5rem; border-radius: 0; border-bottom: 1px solid #F5EBE0; }
+  .nav-links a { padding: 0.75rem 0.5rem; border-radius: 0; border-bottom: 1px solid #EEEEEE; }
   .historia-stats { grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
   .footer-grid { grid-template-columns: 1fr; gap: 2rem; }
   .footer-bottom { flex-direction: column; text-align: center; }

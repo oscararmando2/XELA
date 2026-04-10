@@ -3,10 +3,10 @@
    ========================================== */
 
 :root {
-  --sys-primary: #2D6A0F;
-  --sys-primary-dark: #1E4A09;
-  --sys-accent: #8B4513;
-  --sys-bg: #F4F6F8;
+  --sys-primary: #1E7228;
+  --sys-primary-dark: #155520;
+  --sys-accent: #E63200;
+  --sys-bg: #FFFFFF;
   --sys-surface: #FFFFFF;
   --sys-border: #E2E8F0;
   --sys-text: #1A202C;
@@ -16,8 +16,8 @@
   --sys-blue: #3182CE;
   --sys-yellow: #D69E2E;
   --sys-purple: #805AD5;
-  --sys-orange: #DD6B20;
-  --sys-sidebar-bg: #1A2E1A;
+  --sys-orange: #E63200;
+  --sys-sidebar-bg: #0F2414;
   --sys-sidebar-text: rgba(255,255,255,0.85);
   --sys-sidebar-hover: rgba(255,255,255,0.08);
   --sys-sidebar-active: var(--sys-primary);
@@ -32,7 +32,7 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 15px; }
-body { font-family: var(--font); background: var(--sys-bg); color: var(--sys-text); }
+body { font-family: var(--font); background: #FFFFFF; color: var(--sys-text); }
 a { text-decoration: none; color: inherit; }
 ul { list-style: none; }
 input, select, textarea, button { font-family: var(--font); font-size: 0.95rem; }
@@ -46,7 +46,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1A2E1A 0%, #2D6A0F 60%, #8B4513 100%);
+  background: linear-gradient(135deg, #8C1500 0%, #E63200 40%, #F5A800 65%, #1E7228 100%);
   padding: 1rem;
 }
 .login-card {
@@ -59,6 +59,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   text-align: center;
 }
 .login-logo { font-size: 4rem; margin-bottom: 0.5rem; }
+.login-logo-img { height: 90px; width: auto; margin: 0 auto 0.5rem; display: block; }
 .login-title {
   font-size: 1.6rem;
   font-weight: 700;
@@ -141,6 +142,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .sidebar-logo { font-size: 1.8rem; }
+.sidebar-logo-img { height: 36px; width: auto; display: block; }
 .sidebar-brand strong {
   display: block;
   color: #fff;
