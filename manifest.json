@@ -1,0 +1,21 @@
+{
+  "name": "Xela Tortillería",
+  "short_name": "Xela",
+  "description": "Tortillas artesanales de maíz — Zitácuaro, Michoacán",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2d6a4f",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
