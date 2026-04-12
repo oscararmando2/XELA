@@ -320,7 +320,7 @@ function addToOrder(productId) {
   if (!prod) return;
   const existing = currentOrder.find(o => o.productId === productId);
   if (existing) {
-    existing.qty = parseFloat((existing.qty + 1).toFixed(1));
+    existing.qty = existing.qty + 1;
     existing.total = existing.qty * existing.price;
   } else {
     currentOrder.push({ productId, productName: prod.name, emoji: prod.emoji, qty: 1, price: prod.price, total: prod.price * 1 });
@@ -354,7 +354,7 @@ function renderOrderItems() {
 }
 
 function changeQty(idx, delta) {
-  currentOrder[idx].qty = Math.max(1, parseFloat((currentOrder[idx].qty + delta).toFixed(1)));
+  currentOrder[idx].qty = Math.max(1, currentOrder[idx].qty + delta);
   currentOrder[idx].total = currentOrder[idx].qty * currentOrder[idx].price;
   renderOrderItems();
 }
