@@ -79,9 +79,20 @@ function initSampleData() {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tmStr = tomorrow.toISOString().split('T')[0];
   const orders = [
-    { id: uid(), clientId: clients[0].id, clientName: clients[0].name, clientAddress: clients[0].address, productId: 'moringa', productName: 'Tortilla de Moringa', qty: 2, price: 30, total: 60, date: tmStr, status: 'pendiente', notes: '' },
-    { id: uid(), clientId: clients[1].id, clientName: clients[1].name, clientAddress: clients[1].address, productId: 'maiz',    productName: 'Tortilla de Maíz',    qty: 3, price: 15, total: 45, date: tmStr, status: 'pendiente', notes: '' },
-    { id: uid(), clientId: clients[2].id, clientName: clients[2].name, clientAddress: clients[2].address, productId: 'nopal',   productName: 'Tortilla de Nopal',   qty: 1, price: 25, total: 25, date: tmStr, status: 'pendiente', notes: '' },
+    { id: uid(), clientId: clients[0].id, clientName: clients[0].name, clientAddress: clients[0].address,
+      items: [
+        { productId: 'moringa', productName: 'Tortilla de Moringa', qty: 2, price: 30, total: 60 },
+        { productId: 'maiz', productName: 'Tortilla de Maíz', qty: 1, price: 15, total: 15 },
+      ], total: 75, date: tmStr, status: 'pendiente', notes: '' },
+    { id: uid(), clientId: clients[1].id, clientName: clients[1].name, clientAddress: clients[1].address,
+      items: [
+        { productId: 'maiz', productName: 'Tortilla de Maíz', qty: 3, price: 15, total: 45 },
+      ], total: 45, date: tmStr, status: 'pendiente', notes: '' },
+    { id: uid(), clientId: clients[2].id, clientName: clients[2].name, clientAddress: clients[2].address,
+      items: [
+        { productId: 'nopal', productName: 'Tortilla de Nopal', qty: 1, price: 25, total: 25 },
+        { productId: 'pasilla', productName: 'Tortilla de Chile Pasilla', qty: 2, price: 25, total: 50 },
+      ], total: 75, date: tmStr, status: 'pendiente', notes: '' },
   ];
   setData('orders', orders);
 
@@ -697,27 +708,95 @@ function initCRM() {
   // Client search
   document.getElementById('cliSearch').addEventListener('input', renderClientList);
 
-  // Order form
+  // Phone search for customer
+  let orderSelectedClient = null;
+  const phoneInput = document.getElementById('orderPhone');
+  const phoneResult = document.getElementById('phoneSearchResult');
+  const newClientFields = document.getElementById('newClientFields');
+
+  phoneInput.addEventListener('input', function() {
+    const phone = this.value.replace(/\D/g, '');
+    if (phone.length < 3) {
+      phoneResult.style.display = 'none';
+      newClientFields.style.display = 'none';
+      orderSelectedClient = null;
+      return;
+    }
+    const clients = getData('clients', []);
+    const found = clients.find(c => (c.phone || '').replace(/\D/g, '').endsWith(phone));
+    if (found) {
+      orderSelectedClient = found;
+      phoneResult.style.display = 'block';
+      phoneResult.className = 'phone-search-result found';
+      phoneResult.innerHTML = `<span class="phone-found-icon">✅</span> <strong>${found.name}</strong>${found.address ? ` — 📍 ${found.address}` : ''}`;
+      newClientFields.style.display = 'none';
+    } else {
+      orderSelectedClient = null;
+      phoneResult.style.display = 'block';
+      phoneResult.className = 'phone-search-result not-found';
+      phoneResult.innerHTML = '🆕 Cliente nuevo — completa los datos:';
+      newClientFields.style.display = 'block';
+    }
+  });
+
+  // Add product line button
+  document.getElementById('addProductLineBtn').addEventListener('click', addProductLine);
+  addProductLine(); // Start with one product line
+
+  // Order form submit with multi-product support
   document.getElementById('orderForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    const clientId = document.getElementById('orderClient').value;
-    const productId = document.getElementById('orderProduct').value;
-    const qty = parseFloat(document.getElementById('orderQty').value);
+    const phone = document.getElementById('orderPhone').value.trim();
     const date = document.getElementById('orderDate').value;
-    if (!clientId || !productId || !qty || !date) { toast('Completa todos los campos', 'warning'); return; }
+    if (!phone) { toast('Ingresa un teléfono', 'warning'); return; }
+    if (!date) { toast('Selecciona fecha de entrega', 'warning'); return; }
 
-    const clients = getData('clients', []);
-    const client = clients.find(c => c.id === clientId);
-    const product = PRODUCTS.find(p => p.id === productId);
+    // Collect product lines
+    const lines = document.querySelectorAll('.product-line');
+    const items = [];
+    for (const line of lines) {
+      const productId = line.querySelector('.pl-product').value;
+      const qty = parseFloat(line.querySelector('.pl-qty').value);
+      if (!productId || !qty || qty < 1) continue;
+      const product = PRODUCTS.find(p => p.id === productId);
+      items.push({
+        productId,
+        productName: product?.name || '',
+        qty,
+        price: product?.price || 0,
+        total: qty * (product?.price || 0),
+      });
+    }
+    if (items.length === 0) { toast('Agrega al menos un producto', 'warning'); return; }
+
+    // Resolve or create client
+    let client = orderSelectedClient;
+    if (!client) {
+      const name = document.getElementById('orderClientName').value.trim();
+      const address = document.getElementById('orderClientAddress').value.trim();
+      if (!name) { toast('Ingresa el nombre del cliente nuevo', 'warning'); return; }
+      client = { id: uid(), name, phone, address, lat: null, lng: null, notes: '' };
+      const clients = getData('clients', []);
+      clients.push(client);
+      setData('clients', clients);
+      toast(`Cliente "${name}" registrado automáticamente ✅`);
+    }
+
+    const orderTotal = items.reduce((a, i) => a + i.total, 0);
     const orders = getData('orders', []);
     orders.push({
-      id: uid(), clientId, clientName: client?.name || '', clientAddress: client?.address || '',
-      productId, productName: product?.name || '', qty, price: product?.price || 0,
-      total: qty * (product?.price || 0), date, status: 'pendiente',
+      id: uid(), clientId: client.id, clientName: client.name, clientAddress: client.address || '',
+      items, total: orderTotal, date, status: 'pendiente',
       notes: document.getElementById('orderNotes').value.trim(),
     });
     setData('orders', orders);
     this.reset();
+    orderSelectedClient = null;
+    phoneResult.style.display = 'none';
+    newClientFields.style.display = 'none';
+    document.getElementById('orderProductLines').innerHTML = '';
+    addProductLine();
+    updateOrderRunningTotal();
     toast('Pedido registrado ✅');
     renderCRM();
   });
@@ -732,8 +811,6 @@ function initCRM() {
 function renderCRM() {
   renderClientList();
   renderOrderList();
-  populateClientSelect();
-  populateProductSelect();
 }
 
 function renderClientList() {
@@ -782,24 +859,73 @@ function renderOrderList() {
     container.innerHTML = '<p class="empty-msg">Sin pedidos activos</p>';
     return;
   }
-  container.innerHTML = [...orders].reverse().map(o =>
-    `<div class="order-card ${o.status === 'entregado' ? 'completed' : ''}">
-      <div class="order-card-header">
-        <div>
-          <div class="order-client-name">👤 ${o.clientName}</div>
-          <div class="order-detail">📦 ${o.productName.replace('Tortilla de ','')} — ${o.qty} docenas — ${fmt(o.total)}</div>
-          <div class="order-detail">📅 Entrega: ${o.date}</div>
-          ${o.clientAddress ? `<div class="order-detail">📍 ${o.clientAddress}</div>` : ''}
-          ${o.notes ? `<div class="order-detail">"${o.notes}"</div>` : ''}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:0.35rem;align-items:flex-end;">
-          <span class="${o.status === 'pendiente' ? 'order-badge-pending' : 'order-badge-done'}">${o.status === 'pendiente' ? '⏳ Pendiente' : '✅ Entregado'}</span>
-          ${o.status === 'pendiente' ? `<button class="btn-secondary-sys" onclick="markDelivered('${o.id}')">✅ Entregado</button>` : ''}
-          <button class="btn-danger-sys" onclick="deleteOrder('${o.id}')">🗑️</button>
-        </div>
+  container.innerHTML = [...orders].reverse().map(o => {
+    // Support both legacy single-product orders and new multi-product orders
+    const items = o.items || [{ productName: o.productName, qty: o.qty, total: o.total }];
+    const orderTotal = o.total || items.reduce((a, i) => a + (i.total || 0), 0);
+    const productsHtml = items.map(i =>
+      `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ','')} — ${i.qty} doc. — ${fmt(i.total)}</div>`
+    ).join('');
+    return `<div class="order-card-new">
+      <div class="order-card-top">
+        <button class="order-delete-icon" onclick="deleteOrder('${o.id}')" title="Eliminar pedido">🗑️</button>
       </div>
-    </div>`
-  ).join('');
+      <div class="order-card-body">
+        <div class="order-client-name">👤 ${o.clientName}</div>
+        ${o.clientAddress ? `<div class="order-detail">📍 ${o.clientAddress}</div>` : ''}
+        <div class="order-detail">📅 Entrega: ${o.date}</div>
+        <div class="order-products-list">${productsHtml}</div>
+        <div class="order-total-line">Total: ${fmt(orderTotal)}</div>
+        ${o.notes ? `<div class="order-detail order-notes-text">"${o.notes}"</div>` : ''}
+      </div>
+      ${o.status === 'pendiente'
+        ? `<button class="btn-entregado" onclick="markDelivered('${o.id}')">✅ Entregado</button>`
+        : `<div class="order-badge-done-full">✅ Entregado</div>`
+      }
+    </div>`;
+  }).join('');
+}
+
+// ---- Multi-product line helpers ----
+function addProductLine() {
+  const container = document.getElementById('orderProductLines');
+  const line = document.createElement('div');
+  line.className = 'product-line';
+  line.innerHTML = `
+    <select class="pl-product" required>
+      <option value="">— Producto —</option>
+      ${PRODUCTS.map(p => `<option value="${p.id}">${p.emoji} ${p.name.replace('Tortilla de ','')}</option>`).join('')}
+    </select>
+    <input type="number" class="pl-qty" placeholder="Docenas" min="1" step="1" value="1" required />
+    <span class="pl-line-total">$0.00</span>
+    <button type="button" class="pl-remove" title="Quitar">✕</button>
+  `;
+  container.appendChild(line);
+
+  line.querySelector('.pl-product').addEventListener('change', updateOrderRunningTotal);
+  line.querySelector('.pl-qty').addEventListener('input', updateOrderRunningTotal);
+  line.querySelector('.pl-remove').addEventListener('click', function() {
+    if (container.querySelectorAll('.product-line').length > 1) {
+      line.remove();
+      updateOrderRunningTotal();
+    } else {
+      toast('Debe haber al menos un producto', 'warning');
+    }
+  });
+  updateOrderRunningTotal();
+}
+
+function updateOrderRunningTotal() {
+  let total = 0;
+  document.querySelectorAll('.product-line').forEach(line => {
+    const productId = line.querySelector('.pl-product').value;
+    const qty = parseFloat(line.querySelector('.pl-qty').value) || 0;
+    const product = PRODUCTS.find(p => p.id === productId);
+    const lineTotal = qty * (product?.price || 0);
+    line.querySelector('.pl-line-total').textContent = productId ? fmt(lineTotal) : '$0.00';
+    total += lineTotal;
+  });
+  document.getElementById('orderRunningTotal').textContent = fmt(total);
 }
 
 function markDelivered(id) {
@@ -817,21 +943,6 @@ function deleteOrder(id) {
   setData('orders', orders);
   toast('Pedido eliminado', 'warning');
   renderCRM();
-}
-
-function populateClientSelect() {
-  const clients = getData('clients', []);
-  const sel = document.getElementById('orderClient');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">— Seleccionar cliente —</option>' +
-    clients.map(c => `<option value="${c.id}" ${c.id === current ? 'selected' : ''}>${c.name}</option>`).join('');
-}
-
-function populateProductSelect() {
-  const sel = document.getElementById('orderProduct');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">— Seleccionar —</option>' +
-    PRODUCTS.map(p => `<option value="${p.id}" ${p.id === current ? 'selected' : ''}>${p.emoji} ${p.name.replace('Tortilla de ','')}</option>`).join('');
 }
 
 function initMap() {
@@ -876,7 +987,7 @@ function loadRoute() {
         className: '', iconSize: [28, 28], iconAnchor: [14, 14],
       });
       const marker = L.marker([client.lat, client.lng], { icon }).addTo(deliveryMap);
-      marker.bindPopup(`<strong>${i+1}. ${client.name}</strong><br/>${order.productName.replace('Tortilla de ','')}: ${order.qty} docenas<br/>📍 ${client.address || ''}<br/><span style="color:${order.status==='entregado'?'green':'orange'}">${order.status}</span>`);
+      marker.bindPopup(`<strong>${i+1}. ${client.name}</strong><br/>${(order.items || [{productName: order.productName, qty: order.qty}]).map(it => `${(it.productName||'').replace('Tortilla de ','')}: ${it.qty} doc.`).join('<br/>')}<br/>📍 ${client.address || ''}<br/><span style="color:${order.status==='entregado'?'green':'orange'}">${order.status}</span>`);
       deliveryMarkers.push(marker);
       stops.push({ order, client, num: i + 1 });
     }
@@ -904,7 +1015,7 @@ function loadRoute() {
         <div class="stop-num">${s.num}</div>
         <div class="stop-info">
           <div class="stop-name">${s.client.name}</div>
-          <div class="stop-addr">${s.client.address || ''} — ${s.order.productName.replace('Tortilla de ','')} ${s.order.qty} docenas</div>
+          <div class="stop-addr">${s.client.address || ''} — ${(s.order.items || [{productName: s.order.productName, qty: s.order.qty}]).map(it => `${(it.productName||'').replace('Tortilla de ','')} ${it.qty} doc.`).join(', ')}</div>
         </div>
         ${s.order.status !== 'entregado'
           ? `<button class="stop-complete-btn" onclick="markDelivered('${s.order.id}')">✅ Listo</button>`

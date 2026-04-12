@@ -393,23 +393,38 @@
               <div class="crm-form">
                 <h3>Registrar Pedido</h3>
                 <form id="orderForm">
+                  <!-- Phone-first customer lookup -->
                   <div class="form-group">
-                    <label>Cliente</label>
-                    <select id="orderClient" required>
-                      <option value="">— Seleccionar cliente —</option>
-                    </select>
+                    <label>📱 Teléfono del cliente</label>
+                    <input type="tel" id="orderPhone" placeholder="443 000 0000" required autocomplete="off" />
+                    <div id="phoneSearchResult" class="phone-search-result" style="display:none;"></div>
                   </div>
-                  <div class="form-group">
-                    <label>Producto</label>
-                    <select id="orderProduct" required>
-                      <option value="">— Seleccionar —</option>
-                    </select>
-                  </div>
-                  <div class="form-row">
+                  <!-- Additional fields for new customer (hidden when found) -->
+                  <div id="newClientFields" style="display:none;">
                     <div class="form-group">
-                      <label>Cantidad (docenas)</label>
-                      <input type="number" id="orderQty" placeholder="1" min="1" step="1" required />
+                      <label>Nombre completo</label>
+                      <input type="text" id="orderClientName" placeholder="Nombre del nuevo cliente" />
                     </div>
+                    <div class="form-group">
+                      <label>Dirección de entrega</label>
+                      <input type="text" id="orderClientAddress" placeholder="Calle, Colonia, Referencias" />
+                    </div>
+                  </div>
+
+                  <!-- Multi-product list -->
+                  <div class="form-group">
+                    <label>🛒 Productos</label>
+                    <div id="orderProductLines" class="order-product-lines"></div>
+                    <button type="button" id="addProductLineBtn" class="btn-add-product-line">＋ Agregar producto</button>
+                  </div>
+
+                  <!-- Running total -->
+                  <div class="order-running-total">
+                    <span>Total del pedido:</span>
+                    <span id="orderRunningTotal" class="running-total-amount">$0.00</span>
+                  </div>
+
+                  <div class="form-row">
                     <div class="form-group">
                       <label>Fecha de entrega</label>
                       <input type="date" id="orderDate" required />
