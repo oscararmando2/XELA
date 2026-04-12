@@ -1173,6 +1173,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   .report-kpis { grid-template-columns: 1fr 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .product-buttons { grid-template-columns: 1fr 1fr; }
+  .product-line { flex-wrap: wrap; }
+  .product-line .pl-product { flex: 1 1 100%; }
+  .product-line .pl-qty { flex: 0 0 60px; }
   .modules-wrap { padding: 1rem; }
 }
 @media (max-width: 400px) {

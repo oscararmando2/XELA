@@ -723,7 +723,7 @@ function initCRM() {
       return;
     }
     const clients = getData('clients', []);
-    const found = clients.find(c => (c.phone || '').replace(/\D/g, '').includes(phone));
+    const found = clients.find(c => (c.phone || '').replace(/\D/g, '').endsWith(phone));
     if (found) {
       orderSelectedClient = found;
       phoneResult.style.display = 'block';
