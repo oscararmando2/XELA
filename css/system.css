@@ -803,6 +803,185 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
 .order-badge-pending { background: #FFF3CD; color: #856404; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 50px; }
 .order-badge-done { background: #D4EDDA; color: #155724; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 50px; }
 
+/* ---- Phone search result ---- */
+.phone-search-result {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.phone-search-result.found {
+  background: #D4EDDA;
+  color: #155724;
+  border: 1px solid #38A169;
+}
+.phone-search-result.not-found {
+  background: #FFF3CD;
+  color: #856404;
+  border: 1px solid #D69E2E;
+}
+.phone-found-icon { font-size: 1rem; }
+
+/* ---- Multi-product lines ---- */
+.order-product-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.product-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--sys-bg);
+  border: 1px solid var(--sys-border);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.5rem;
+}
+.product-line .pl-product {
+  flex: 1;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--sys-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fff;
+}
+.product-line .pl-qty {
+  width: 70px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--sys-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.product-line .pl-line-total {
+  font-size: 0.82rem;
+  font-weight: 600;
+  min-width: 55px;
+  text-align: right;
+  color: var(--sys-primary);
+}
+.product-line .pl-remove {
+  background: none;
+  border: none;
+  color: var(--sys-red);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  line-height: 1;
+}
+.product-line .pl-remove:hover { background: rgba(229, 62, 62, 0.1); }
+.btn-add-product-line {
+  background: none;
+  border: 2px dashed var(--sys-border);
+  color: var(--sys-primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.5rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  width: 100%;
+  transition: all var(--transition);
+}
+.btn-add-product-line:hover {
+  border-color: var(--sys-primary);
+  background: rgba(30, 114, 40, 0.04);
+}
+
+/* ---- Running total ---- */
+.order-running-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  background: #F0FFF4;
+  border-radius: var(--radius);
+  margin-bottom: 0.75rem;
+  border: 1px solid #C6F6D5;
+}
+.order-running-total span:first-child {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--sys-text);
+}
+.running-total-amount {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--sys-primary);
+}
+
+/* ---- Redesigned order cards ---- */
+.order-card-new {
+  background: var(--sys-bg);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--sys-orange);
+  overflow: hidden;
+  position: relative;
+}
+.order-card-top {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.4rem 0.6rem 0;
+}
+.order-delete-icon {
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0.45;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  transition: all var(--transition);
+}
+.order-delete-icon:hover { opacity: 1; background: rgba(229, 62, 62, 0.1); }
+.order-card-body {
+  padding: 0 1rem 0.6rem;
+}
+.order-products-list {
+  margin-top: 0.35rem;
+  padding: 0.35rem 0;
+}
+.order-product-item {
+  font-size: 0.82rem;
+  color: var(--sys-text);
+  padding: 0.15rem 0;
+}
+.order-total-line {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--sys-primary);
+  margin-top: 0.3rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--sys-border);
+}
+.order-notes-text { font-style: italic; }
+.btn-entregado {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--sys-green);
+  color: #fff;
+  border: none;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.btn-entregado:hover { background: #2F855A; }
+.order-badge-done-full {
+  display: block;
+  width: 100%;
+  padding: 0.6rem;
+  background: #D4EDDA;
+  color: #155724;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
 .map-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem; }
 .map-controls h3 { font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sys-text-muted); }
 .map-date-filter { display: flex; align-items: center; gap: 0.75rem; }
