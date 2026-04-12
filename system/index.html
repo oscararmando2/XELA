@@ -18,6 +18,19 @@
       <p class="login-subtitle">Sistema Interno de Gestión</p>
       <form id="loginForm" class="login-form">
         <div class="form-group">
+          <label>Rol</label>
+          <div class="role-selector">
+            <label class="role-option selected">
+              <input type="radio" name="loginRole" value="dueno" checked />
+              <span class="role-label">👑 Dueño / Socio</span>
+            </label>
+            <label class="role-option">
+              <input type="radio" name="loginRole" value="equipo" />
+              <span class="role-label">👷 Equipo</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
           <label for="loginPassword">Contraseña</label>
           <input type="password" id="loginPassword" placeholder="Ingresa la contraseña" autocomplete="current-password" />
         </div>
@@ -285,13 +298,7 @@
                   </div>
                   <div class="form-group">
                     <label>Unidad</label>
-                    <select id="invUnit">
-                      <option value="docena">docena</option>
-                      <option value="g">g</option>
-                      <option value="L">L</option>
-                      <option value="pz">pz</option>
-                      <option value="bolsa">bolsa</option>
-                    </select>
+                    <input type="text" id="invUnit" value="docena" readonly class="inv-unit-fixed" />
                   </div>
                 </div>
                 <div class="form-group">
