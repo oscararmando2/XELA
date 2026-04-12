@@ -3,7 +3,8 @@
 // ==========================================
 
 // ---- Contraseña ----
-const PASSWORD = 'xela2024';
+const PASSWORDS = { control: 'xela2024', equipo: 'xelaempleado' };
+let currentRole = null;
 
 // ---- Productos del catálogo ----
 const PRODUCTS = [
@@ -33,7 +34,7 @@ function initSampleData() {
     { id: 'nopal_fresco',  name: 'Nopal fresco',       qty: 8,   unit: 'docena', threshold: 5,  cost: 15 },
     { id: 'chile_pasilla', name: 'Chile pasilla seco', qty: 1.5, unit: 'docena', threshold: 2,  cost: 80 },
     { id: 'cal',           name: 'Cal',                qty: 10,  unit: 'docena', threshold: 3,  cost: 5 },
-    { id: 'gas',           name: 'Gas LP',             qty: 1,   unit: 'pz', threshold: 1,  cost: 300 },
+    { id: 'gas',           name: 'Gas LP',             qty: 1,   unit: 'docena', threshold: 1,  cost: 300 },
   ];
   setData('inventory', inventory);
 
@@ -115,14 +116,26 @@ function toast(msg, type = 'success') {
 // ==========================================
 // LOGIN
 // ==========================================
+
+// Role selector UI
+document.querySelectorAll('.role-option input[name="loginRole"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    document.querySelectorAll('.role-option').forEach(opt => opt.classList.remove('selected'));
+    radio.closest('.role-option').classList.add('selected');
+  });
+});
+
 document.getElementById('loginForm').addEventListener('submit', function(e) {
   e.preventDefault();
   const pw = document.getElementById('loginPassword').value;
+  const role = document.querySelector('input[name="loginRole"]:checked').value;
   const err = document.getElementById('loginError');
-  if (pw === PASSWORD) {
+  if (pw === PASSWORDS[role]) {
+    currentRole = role;
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('dashboard').style.display = 'flex';
     initSampleData();
+    applyRoleAccess(role);
     initDashboard();
   } else {
     err.style.display = 'block';
@@ -130,6 +143,29 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
     document.getElementById('loginPassword').focus();
   }
 });
+
+// ==========================================
+// ROLE ACCESS CONTROL
+// ==========================================
+const ROLE_MODULES = {
+  control: ['resumen', 'pos', 'contador', 'inventario', 'crm', 'reportes'],
+  equipo: ['pos', 'crm']
+};
+
+function applyRoleAccess(role) {
+  const allowed = ROLE_MODULES[role] || [];
+  document.querySelectorAll('.nav-item').forEach(item => {
+    const mod = item.dataset.module;
+    if (allowed.includes(mod)) {
+      item.style.display = '';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+  // Switch to the first allowed module
+  const defaultMod = allowed[0] || 'pos';
+  switchModule(defaultMod);
+}
 
 // ==========================================
 // DASHBOARD INIT
@@ -160,9 +196,11 @@ function initDashboard() {
   // Logout
   document.getElementById('logoutBtn').addEventListener('click', () => {
     if (confirm('¿Cerrar sesión?')) {
+      currentRole = null;
       document.getElementById('dashboard').style.display = 'none';
       document.getElementById('loginScreen').style.display = 'flex';
       document.getElementById('loginPassword').value = '';
+      document.getElementById('loginError').style.display = 'none';
     }
   });
 

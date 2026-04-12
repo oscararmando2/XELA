@@ -112,6 +112,42 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
 }
 .login-back:hover { color: var(--sys-primary); }
 
+/* Role selector */
+.role-selector { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
+.role-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 0.5rem;
+  border: 2px solid var(--sys-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  background: #fff;
+}
+.role-option input[type="radio"] { display: none; }
+.role-label { font-size: 0.85rem; font-weight: 600; color: var(--sys-text); white-space: nowrap; }
+.role-option:hover { border-color: var(--sys-primary); }
+.role-option.selected {
+  border-color: var(--sys-primary);
+  background: #FEF3E2;
+  box-shadow: 0 0 0 1px var(--sys-primary);
+}
+.role-option.selected .role-label { color: var(--sys-primary); }
+
+/* Inventory fixed unit input */
+.inv-unit-fixed {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: 1.5px solid var(--sys-border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  background: var(--sys-bg);
+  color: var(--sys-text-muted);
+  cursor: default;
+}
+
 /* ==========================================
    DASHBOARD LAYOUT
    ========================================== */
