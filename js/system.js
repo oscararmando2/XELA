@@ -7,10 +7,10 @@ const PASSWORD = 'xela2024';
 
 // ---- Productos del catálogo ----
 const PRODUCTS = [
-  { id: 'maiz',    name: 'Tortilla de Maíz',         price: 18, unit: 'docena', emoji: '🌽' },
-  { id: 'moringa', name: 'Tortilla de Moringa',       price: 22, unit: 'docena', emoji: '🌿' },
-  { id: 'nopal',   name: 'Tortilla de Nopal',         price: 20, unit: 'docena', emoji: '🌵' },
-  { id: 'pasilla', name: 'Tortilla de Chile Pasilla', price: 24, unit: 'docena', emoji: '🌶️' },
+  { id: 'maiz',    name: 'Tortilla de Maíz',         price: 15, unit: 'docena', emoji: '🌽' },
+  { id: 'moringa', name: 'Tortilla de Moringa',       price: 30, unit: 'docena', emoji: '🌿' },
+  { id: 'nopal',   name: 'Tortilla de Nopal',         price: 25, unit: 'docena', emoji: '🌵' },
+  { id: 'pasilla', name: 'Tortilla de Chile Pasilla', price: 25, unit: 'docena', emoji: '🌶️' },
 ];
 
 // ---- Almacenamiento ----
@@ -59,7 +59,7 @@ function initSampleData() {
     d.setDate(d.getDate() - i);
     const ds = d.toISOString().split('T')[0];
     PRODUCTS.forEach(p => {
-      const qty = parseFloat((0.5 + Math.random() * 4).toFixed(1));
+      const qty = parseFloat((1 + Math.random() * 4).toFixed(0));
       sales.push({ id: uid(), date: ds, time: '09:30', productId: p.id, productName: p.name, qty, price: p.price, total: qty * p.price, payment: 'efectivo' });
     });
   }
@@ -78,9 +78,9 @@ function initSampleData() {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tmStr = tomorrow.toISOString().split('T')[0];
   const orders = [
-    { id: uid(), clientId: clients[0].id, clientName: clients[0].name, clientAddress: clients[0].address, productId: 'moringa', productName: 'Tortilla de Moringa', qty: 2, price: 22, total: 44, date: tmStr, status: 'pendiente', notes: '' },
-    { id: uid(), clientId: clients[1].id, clientName: clients[1].name, clientAddress: clients[1].address, productId: 'maiz',    productName: 'Tortilla de Maíz',    qty: 3, price: 18, total: 54, date: tmStr, status: 'pendiente', notes: '' },
-    { id: uid(), clientId: clients[2].id, clientName: clients[2].name, clientAddress: clients[2].address, productId: 'nopal',   productName: 'Tortilla de Nopal',   qty: 1, price: 20, total: 20, date: tmStr, status: 'pendiente', notes: '' },
+    { id: uid(), clientId: clients[0].id, clientName: clients[0].name, clientAddress: clients[0].address, productId: 'moringa', productName: 'Tortilla de Moringa', qty: 2, price: 30, total: 60, date: tmStr, status: 'pendiente', notes: '' },
+    { id: uid(), clientId: clients[1].id, clientName: clients[1].name, clientAddress: clients[1].address, productId: 'maiz',    productName: 'Tortilla de Maíz',    qty: 3, price: 15, total: 45, date: tmStr, status: 'pendiente', notes: '' },
+    { id: uid(), clientId: clients[2].id, clientName: clients[2].name, clientAddress: clients[2].address, productId: 'nopal',   productName: 'Tortilla de Nopal',   qty: 1, price: 25, total: 25, date: tmStr, status: 'pendiente', notes: '' },
   ];
   setData('orders', orders);
 
@@ -320,10 +320,10 @@ function addToOrder(productId) {
   if (!prod) return;
   const existing = currentOrder.find(o => o.productId === productId);
   if (existing) {
-    existing.qty = parseFloat((existing.qty + 0.5).toFixed(1));
+    existing.qty = existing.qty + 1;
     existing.total = existing.qty * existing.price;
   } else {
-    currentOrder.push({ productId, productName: prod.name, emoji: prod.emoji, qty: 0.5, price: prod.price, total: prod.price * 0.5 });
+    currentOrder.push({ productId, productName: prod.name, emoji: prod.emoji, qty: 1, price: prod.price, total: prod.price * 1 });
   }
   renderOrderItems();
 }
@@ -340,9 +340,9 @@ function renderOrderItems() {
     `<div class="order-item">
       <span>${item.emoji} ${item.productName.replace('Tortilla de ', '')}</span>
       <div class="oi-controls">
-        <button class="oi-btn" onclick="changeQty(${idx}, -0.5)">−</button>
+        <button class="oi-btn" onclick="changeQty(${idx}, -1)">−</button>
         <span class="oi-qty">${item.qty} docenas</span>
-        <button class="oi-btn" onclick="changeQty(${idx}, 0.5)">+</button>
+        <button class="oi-btn" onclick="changeQty(${idx}, 1)">+</button>
         <span style="min-width:60px;text-align:right;font-weight:600;">${fmt(item.total)}</span>
         <button class="oi-btn" style="color:var(--sys-red)" onclick="removeItem(${idx})">✕</button>
       </div>
@@ -354,7 +354,7 @@ function renderOrderItems() {
 }
 
 function changeQty(idx, delta) {
-  currentOrder[idx].qty = Math.max(0.5, parseFloat((currentOrder[idx].qty + delta).toFixed(1)));
+  currentOrder[idx].qty = Math.max(1, currentOrder[idx].qty + delta);
   currentOrder[idx].total = currentOrder[idx].qty * currentOrder[idx].price;
   renderOrderItems();
 }
