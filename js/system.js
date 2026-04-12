@@ -3,7 +3,7 @@
 // ==========================================
 
 // ---- Contraseña ----
-const PASSWORDS = { dueno: 'xela2024', equipo: 'xelaempleado' };
+const PASSWORDS = { control: 'xela2024', equipo: 'xelaempleado' };
 let currentRole = null;
 
 // ---- Productos del catálogo ----
@@ -148,7 +148,7 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
 // ROLE ACCESS CONTROL
 // ==========================================
 const ROLE_MODULES = {
-  dueno: ['resumen', 'pos', 'contador', 'inventario', 'crm', 'reportes'],
+  control: ['resumen', 'pos', 'contador', 'inventario', 'crm', 'reportes'],
   equipo: ['pos', 'crm']
 };
 
