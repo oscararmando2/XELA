@@ -739,11 +739,29 @@ function initCRM() {
     }
   });
 
-  // Add product line button
-  document.getElementById('addProductLineBtn').addEventListener('click', addProductLine);
-  addProductLine(); // Start with one product line
+  // POS-style product grid for orders
+  renderOrderProductGrid();
 
-  // Order form submit with multi-product support
+  // Auto-date: default to today
+  document.getElementById('orderDate').value = today();
+  document.getElementById('toggleCustomDate').addEventListener('click', function() {
+    const wrap = document.getElementById('customDateWrap');
+    const isVisible = wrap.style.display !== 'none';
+    wrap.style.display = isVisible ? 'none' : 'flex';
+    if (!isVisible) {
+      document.getElementById('orderDateCustom').value = document.getElementById('orderDate').value;
+    }
+  });
+  document.getElementById('orderDateCustom').addEventListener('change', function() {
+    document.getElementById('orderDate').value = this.value;
+  });
+  document.getElementById('resetDateToday').addEventListener('click', function() {
+    document.getElementById('orderDate').value = today();
+    document.getElementById('orderDateCustom').value = today();
+    document.getElementById('customDateWrap').style.display = 'none';
+  });
+
+  // Order form submit with POS-style cart
   document.getElementById('orderForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const phone = document.getElementById('orderPhone').value.trim();
@@ -751,13 +769,11 @@ function initCRM() {
     if (!phone) { toast('Ingresa un teléfono', 'warning'); return; }
     if (!date) { toast('Selecciona fecha de entrega', 'warning'); return; }
 
-    // Collect product lines
-    const lines = document.querySelectorAll('.product-line');
+    // Collect items from cart
     const items = [];
-    for (const line of lines) {
-      const productId = line.querySelector('.pl-product').value;
-      const qty = parseFloat(line.querySelector('.pl-qty').value);
-      if (!productId || !qty || qty < 1) continue;
+    const orderCart = getOrderCart();
+    for (const [productId, qty] of Object.entries(orderCart)) {
+      if (qty < 1) continue;
       const product = PRODUCTS.find(p => p.id === productId);
       items.push({
         productId,
@@ -794,9 +810,13 @@ function initCRM() {
     orderSelectedClient = null;
     phoneResult.style.display = 'none';
     newClientFields.style.display = 'none';
-    document.getElementById('orderProductLines').innerHTML = '';
-    addProductLine();
-    updateOrderRunningTotal();
+    // Reset cart
+    _orderCart = {};
+    renderOrderProductGrid();
+    renderOrderCart();
+    // Reset date to today
+    document.getElementById('orderDate').value = today();
+    document.getElementById('customDateWrap').style.display = 'none';
     toast('Pedido registrado ✅');
     renderCRM();
   });
@@ -886,46 +906,95 @@ function renderOrderList() {
   }).join('');
 }
 
-// ---- Multi-product line helpers ----
-function addProductLine() {
-  const container = document.getElementById('orderProductLines');
-  const line = document.createElement('div');
-  line.className = 'product-line';
-  line.innerHTML = `
-    <select class="pl-product" required>
-      <option value="">— Producto —</option>
-      ${PRODUCTS.map(p => `<option value="${p.id}">${p.emoji} ${p.name.replace('Tortilla de ','')}</option>`).join('')}
-    </select>
-    <input type="number" class="pl-qty" placeholder="Docenas" min="1" step="1" value="1" required />
-    <span class="pl-line-total">$0.00</span>
-    <button type="button" class="pl-remove" title="Quitar">✕</button>
-  `;
-  container.appendChild(line);
+// ---- POS-style product grid for orders ----
+let _orderCart = {};
 
-  line.querySelector('.pl-product').addEventListener('change', updateOrderRunningTotal);
-  line.querySelector('.pl-qty').addEventListener('input', updateOrderRunningTotal);
-  line.querySelector('.pl-remove').addEventListener('click', function() {
-    if (container.querySelectorAll('.product-line').length > 1) {
-      line.remove();
-      updateOrderRunningTotal();
-    } else {
-      toast('Debe haber al menos un producto', 'warning');
-    }
+function renderOrderProductGrid() {
+  const grid = document.getElementById('orderProductGrid');
+  if (!grid) return;
+  grid.innerHTML = PRODUCTS.map(p => {
+    const qty = _orderCart[p.id] || 0;
+    return `<button type="button" class="order-grid-btn ${qty > 0 ? 'active' : ''}" data-product="${p.id}">
+      <span class="og-emoji">${p.emoji}</span>
+      <span class="og-name">${p.name.replace('Tortilla de ', '')}</span>
+      <span class="og-price">${fmt(p.price)}/doc</span>
+      ${qty > 0 ? `<span class="og-badge">${qty}</span>` : ''}
+    </button>`;
+  }).join('');
+  grid.querySelectorAll('.order-grid-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const pid = this.dataset.product;
+      const cart = getOrderCart();
+      cart[pid] = (cart[pid] || 0) + 1;
+      renderOrderProductGrid();
+      renderOrderCart();
+    });
   });
-  updateOrderRunningTotal();
+}
+
+function getOrderCart() {
+  return _orderCart;
+}
+
+function renderOrderCart() {
+  const cart = getOrderCart();
+  const summary = document.getElementById('orderCartSummary');
+  const itemsEl = document.getElementById('orderCartItems');
+  const entries = Object.entries(cart).filter(([, q]) => q > 0);
+  if (entries.length === 0) {
+    summary.style.display = 'none';
+    document.getElementById('orderRunningTotal').textContent = '$0.00';
+    return;
+  }
+  summary.style.display = 'block';
+  let total = 0;
+  itemsEl.innerHTML = entries.map(([pid, qty]) => {
+    const p = PRODUCTS.find(x => x.id === pid);
+    const lineTotal = qty * (p?.price || 0);
+    total += lineTotal;
+    return `<div class="cart-item">
+      <span class="ci-info">${p?.emoji || ''} ${(p?.name || '').replace('Tortilla de ', '')} × ${qty}</span>
+      <span class="ci-total">${fmt(lineTotal)}</span>
+      <div class="ci-controls">
+        <button type="button" class="ci-minus" data-product="${pid}">−</button>
+        <button type="button" class="ci-plus" data-product="${pid}">+</button>
+        <button type="button" class="ci-remove" data-product="${pid}">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('orderRunningTotal').textContent = fmt(total);
+
+  // Wire up cart buttons
+  itemsEl.querySelectorAll('.ci-minus').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const cart = getOrderCart();
+      cart[this.dataset.product] = Math.max(0, (cart[this.dataset.product] || 0) - 1);
+      if (cart[this.dataset.product] === 0) delete cart[this.dataset.product];
+      renderOrderProductGrid();
+      renderOrderCart();
+    });
+  });
+  itemsEl.querySelectorAll('.ci-plus').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const cart = getOrderCart();
+      cart[this.dataset.product] = (cart[this.dataset.product] || 0) + 1;
+      renderOrderProductGrid();
+      renderOrderCart();
+    });
+  });
+  itemsEl.querySelectorAll('.ci-remove').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const cart = getOrderCart();
+      delete cart[this.dataset.product];
+      renderOrderProductGrid();
+      renderOrderCart();
+    });
+  });
 }
 
 function updateOrderRunningTotal() {
-  let total = 0;
-  document.querySelectorAll('.product-line').forEach(line => {
-    const productId = line.querySelector('.pl-product').value;
-    const qty = parseFloat(line.querySelector('.pl-qty').value) || 0;
-    const product = PRODUCTS.find(p => p.id === productId);
-    const lineTotal = qty * (product?.price || 0);
-    line.querySelector('.pl-line-total').textContent = productId ? fmt(lineTotal) : '$0.00';
-    total += lineTotal;
-  });
-  document.getElementById('orderRunningTotal').textContent = fmt(total);
+  // Keep backward-compat: recalculate from cart
+  renderOrderCart();
 }
 
 function markDelivered(id) {
