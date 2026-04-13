@@ -1212,38 +1212,15 @@ function openInGoogleMaps() {
   const pendingStops = optimizedStops.filter(s => s.order.status !== 'entregado');
   const stopsToNavigate = pendingStops.length > 0 ? pendingStops : optimizedStops;
 
-  function buildAndOpenUrl(origin) {
-    if (stopsToNavigate.length === 1) {
-      const dest = `${stopsToNavigate[0].client.lat},${stopsToNavigate[0].client.lng}`;
-      window.open(`https://www.google.com/maps/dir/${origin}/${dest}`, '_blank');
-      return;
-    }
-
-    const destination = `${stopsToNavigate[stopsToNavigate.length - 1].client.lat},${stopsToNavigate[stopsToNavigate.length - 1].client.lng}`;
-    const waypoints = stopsToNavigate.slice(0, -1).map(s => `${s.client.lat},${s.client.lng}`).join('|');
-    window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`, '_blank');
+  if (stopsToNavigate.length === 1) {
+    const dest = `${stopsToNavigate[0].client.lat},${stopsToNavigate[0].client.lng}`;
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, '_blank');
+    return;
   }
 
-  // Use the device's current GPS location as the starting point
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const origin = `${position.coords.latitude},${position.coords.longitude}`;
-        buildAndOpenUrl(origin);
-      },
-      (error) => {
-        // Fallback to HOME_BASE if geolocation is denied or unavailable
-        const msg = error.code === 1
-          ? '⚠️ Permiso de ubicación denegado, usando base como origen.'
-          : '⚠️ No se pudo obtener tu ubicación, usando base como origen.';
-        toast(msg, 'warning');
-        buildAndOpenUrl(`${HOME_BASE.lat},${HOME_BASE.lng}`);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
-    );
-  } else {
-    buildAndOpenUrl(`${HOME_BASE.lat},${HOME_BASE.lng}`);
-  }
+  const destination = `${stopsToNavigate[stopsToNavigate.length - 1].client.lat},${stopsToNavigate[stopsToNavigate.length - 1].client.lng}`;
+  const waypoints = stopsToNavigate.slice(0, -1).map(s => `${s.client.lat},${s.client.lng}`).join('|');
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}&waypoints=${waypoints}&travelmode=driving`, '_blank');
 }
 
 // ==========================================
