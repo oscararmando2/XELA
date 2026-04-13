@@ -811,8 +811,7 @@ function initCRM() {
     phoneResult.style.display = 'none';
     newClientFields.style.display = 'none';
     // Reset cart
-    const cartRef = getOrderCart();
-    Object.keys(cartRef).forEach(k => delete cartRef[k]);
+    _orderCart = {};
     renderOrderProductGrid();
     renderOrderCart();
     // Reset date to today
@@ -908,12 +907,13 @@ function renderOrderList() {
 }
 
 // ---- POS-style product grid for orders ----
+let _orderCart = {};
+
 function renderOrderProductGrid() {
   const grid = document.getElementById('orderProductGrid');
   if (!grid) return;
-  const cart = getOrderCart();
   grid.innerHTML = PRODUCTS.map(p => {
-    const qty = cart[p.id] || 0;
+    const qty = _orderCart[p.id] || 0;
     return `<button type="button" class="order-grid-btn ${qty > 0 ? 'active' : ''}" data-product="${p.id}">
       <span class="og-emoji">${p.emoji}</span>
       <span class="og-name">${p.name.replace('Tortilla de ', '')}</span>
@@ -933,11 +933,7 @@ function renderOrderProductGrid() {
 }
 
 function getOrderCart() {
-  // Access the cart from closure via the form's parent scope
-  // We store cart on the grid element for access
-  const grid = document.getElementById('orderProductGrid');
-  if (!grid._cart) grid._cart = {};
-  return grid._cart;
+  return _orderCart;
 }
 
 function renderOrderCart() {
