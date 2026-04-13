@@ -671,6 +671,8 @@ function updateLowStockBadge() {
 // ==========================================
 let deliveryMap = null;
 let deliveryMarkers = [];
+let optimizedStops = [];
+let routeStarted = false;
 
 function initCRM() {
   // CRM Tabs
@@ -824,6 +826,8 @@ function initCRM() {
   // Map date + route button
   document.getElementById('mapDateFilter').value = today();
   document.getElementById('loadRouteBtn').addEventListener('click', loadRoute);
+  document.getElementById('startDeliveriesBtn').addEventListener('click', startDeliveries);
+  document.getElementById('openGoogleMapsBtn').addEventListener('click', openInGoogleMaps);
 
   renderCRM();
 }
@@ -1014,15 +1018,18 @@ function deleteOrder(id) {
   renderCRM();
 }
 
+// Home base: Zitácuaro centro
+const HOME_BASE = { lat: 19.4326, lng: -100.3572 };
+
 function initMap() {
   if (deliveryMap) { loadRoute(); return; }
-  deliveryMap = L.map('deliveryMap').setView([19.432, -100.356], 14);
+  deliveryMap = L.map('deliveryMap').setView([HOME_BASE.lat, HOME_BASE.lng], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
     maxZoom: 19,
   }).addTo(deliveryMap);
 
-  // Click para obtener coordenadas
+  // Click to get coordinates
   deliveryMap.on('click', function(e) {
     toast(`Coords: ${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)} (copiadas al portapapeles)`, 'success');
     navigator.clipboard?.writeText(`${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);
@@ -1031,68 +1038,191 @@ function initMap() {
   loadRoute();
 }
 
+// Haversine distance in km between two {lat, lng} points
+function haversineDistance(a, b) {
+  const R = 6371;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * sinLng * sinLng;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+// Nearest-neighbor algorithm: orders stops starting from HOME_BASE
+function optimizeRouteOrder(stops) {
+  if (stops.length <= 1) return stops;
+  const remaining = [...stops];
+  const ordered = [];
+  let current = { lat: HOME_BASE.lat, lng: HOME_BASE.lng };
+
+  while (remaining.length > 0) {
+    let nearestIdx = 0;
+    let nearestDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = haversineDistance(current, { lat: remaining[i].client.lat, lng: remaining[i].client.lng });
+      if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+    }
+    const next = remaining.splice(nearestIdx, 1)[0];
+    ordered.push(next);
+    current = { lat: next.client.lat, lng: next.client.lng };
+  }
+  return ordered;
+}
+
 function loadRoute() {
   if (!deliveryMap) return;
   const date = document.getElementById('mapDateFilter').value;
+
+  // TODO: Replace with Firebase real-time listener
+  // Currently loads delivery orders from localStorage. When migrating to Firebase,
+  // replace these getData() calls with a Firestore onSnapshot or Realtime Database
+  // listener that filters orders by date and updates the UI reactively.
+  // The listener should:
+  //   1. Query orders where order.date === selectedDate
+  //   2. Query the clients collection for client details
+  //   3. On each snapshot update, rebuild optimizedStops and call loadRoute() to refresh the map and list
   const orders = getData('orders', []).filter(o => o.date === date);
   const clients = getData('clients', []);
 
   // Clear old markers
   deliveryMarkers.forEach(m => deliveryMap.removeLayer(m));
   deliveryMarkers = [];
+  routeStarted = false;
 
   // HQ marker
   const hqIcon = L.divIcon({ html: '🌽', className: '', iconSize: [30, 30], iconAnchor: [15, 15] });
-  const hqMarker = L.marker([19.4326, -100.3572], { icon: hqIcon }).addTo(deliveryMap);
+  const hqMarker = L.marker([HOME_BASE.lat, HOME_BASE.lng], { icon: hqIcon }).addTo(deliveryMap);
   hqMarker.bindPopup('<strong>Xela Tortillería</strong><br/>Punto de origen');
   deliveryMarkers.push(hqMarker);
 
+  // Build stops array
   const stops = [];
-  orders.forEach((order, i) => {
+  orders.forEach((order) => {
     const client = clients.find(c => c.id === order.clientId);
     if (client && client.lat && client.lng) {
-      const icon = L.divIcon({
-        html: `<div style="background:${order.status==='entregado'?'#38A169':'#DD6B20'};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);">${i+1}</div>`,
-        className: '', iconSize: [28, 28], iconAnchor: [14, 14],
-      });
-      const marker = L.marker([client.lat, client.lng], { icon }).addTo(deliveryMap);
-      marker.bindPopup(`<strong>${i+1}. ${client.name}</strong><br/>${(order.items || [{productName: order.productName, qty: order.qty}]).map(it => `${(it.productName||'').replace('Tortilla de ','')}: ${it.qty} doc.`).join('<br/>')}<br/>📍 ${client.address || ''}<br/><span style="color:${order.status==='entregado'?'green':'orange'}">${order.status}</span>`);
-      deliveryMarkers.push(marker);
-      stops.push({ order, client, num: i + 1 });
+      stops.push({ order, client });
     }
   });
 
+  // Apply nearest-neighbor optimization
+  optimizedStops = optimizeRouteOrder(stops);
+
+  // Number each stop and add markers
+  optimizedStops.forEach((s, i) => {
+    s.num = i + 1;
+    const isDelivered = s.order.status === 'entregado';
+    const icon = L.divIcon({
+      html: `<div style="background:${isDelivered ? '#38A169' : '#DD6B20'};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);">${s.num}</div>`,
+      className: '', iconSize: [28, 28], iconAnchor: [14, 14],
+    });
+    const marker = L.marker([s.client.lat, s.client.lng], { icon }).addTo(deliveryMap);
+    const productsHtml = (s.order.items || [{ productName: s.order.productName, qty: s.order.qty }])
+      .map(it => `${(it.productName || '').replace('Tortilla de ', '')}: ${it.qty} doc.`).join('<br/>');
+    marker.bindPopup(`<strong>${s.num}. ${s.client.name}</strong><br/>${productsHtml}<br/>📍 ${s.client.address || ''}<br/><span style="color:${isDelivered ? 'green' : 'orange'}">${s.order.status}</span>`);
+    deliveryMarkers.push(marker);
+  });
+
   // Draw route line
-  if (stops.length > 0) {
-    const latlngs = [[19.4326, -100.3572], ...stops.map(s => [s.client.lat, s.client.lng])];
+  if (optimizedStops.length > 0) {
+    const latlngs = [[HOME_BASE.lat, HOME_BASE.lng], ...optimizedStops.map(s => [s.client.lat, s.client.lng])];
     const line = L.polyline(latlngs, { color: '#2D6A0F', weight: 3, dashArray: '6, 8', opacity: 0.7 }).addTo(deliveryMap);
     deliveryMarkers.push(line);
     deliveryMap.fitBounds(line.getBounds().pad(0.1));
   }
 
+  // Update action buttons
+  const hasStops = optimizedStops.length > 0;
+  const hasPending = optimizedStops.some(s => s.order.status !== 'entregado');
+  document.getElementById('startDeliveriesBtn').disabled = !hasStops || !hasPending;
+  document.getElementById('openGoogleMapsBtn').disabled = !hasStops;
+
+  // Update progress bar
+  updateRouteProgress();
+
   // Route stops list
-  const routeStops = document.getElementById('routeStops');
-  if (stops.length === 0) {
+  renderRouteStops();
+}
+
+function renderRouteStops() {
+  const routeStopsEl = document.getElementById('routeStops');
+  const date = document.getElementById('mapDateFilter').value;
+
+  if (optimizedStops.length === 0) {
     const p = document.createElement('p');
     p.className = 'empty-msg';
     p.textContent = `Sin entregas para ${date || 'la fecha seleccionada'}`;
-    routeStops.innerHTML = '';
-    routeStops.appendChild(p);
-  } else {
-    routeStops.innerHTML = stops.map(s =>
-      `<div class="route-stop ${s.order.status === 'entregado' ? 'done' : ''}">
-        <div class="stop-num">${s.num}</div>
-        <div class="stop-info">
-          <div class="stop-name">${s.client.name}</div>
-          <div class="stop-addr">${s.client.address || ''} — ${(s.order.items || [{productName: s.order.productName, qty: s.order.qty}]).map(it => `${(it.productName||'').replace('Tortilla de ','')} ${it.qty} doc.`).join(', ')}</div>
-        </div>
-        ${s.order.status !== 'entregado'
-          ? `<button class="stop-complete-btn" onclick="markDelivered('${s.order.id}')">✅ Listo</button>`
-          : `<span class="stop-done-label">✅ Entregado</span>`
-        }
-      </div>`
-    ).join('');
+    routeStopsEl.innerHTML = '';
+    routeStopsEl.appendChild(p);
+    return;
   }
+
+  // Find the next pending stop
+  const nextPendingIdx = optimizedStops.findIndex(s => s.order.status !== 'entregado');
+
+  routeStopsEl.innerHTML = optimizedStops.map((s, idx) => {
+    const isDelivered = s.order.status === 'entregado';
+    const isNext = idx === nextPendingIdx && routeStarted;
+    const productsText = (s.order.items || [{ productName: s.order.productName, qty: s.order.qty }])
+      .map(it => `${(it.productName || '').replace('Tortilla de ', '')} ${it.qty} doc.`).join(', ');
+
+    return `<div class="route-stop ${isDelivered ? 'done' : ''} ${isNext ? 'next-stop' : ''}">
+      <div class="stop-num ${isDelivered ? 'stop-num-done' : ''}">${s.num}</div>
+      <div class="stop-info">
+        <div class="stop-name">${s.client.name}</div>
+        <div class="stop-addr">📍 ${s.client.address || 'Sin dirección'}</div>
+        <div class="stop-products">📦 ${productsText}</div>
+      </div>
+      ${isDelivered
+        ? `<span class="stop-done-label">✅ Entregado</span>`
+        : `<button class="stop-complete-btn" onclick="markDelivered('${s.order.id}')">Entregado ✅</button>`
+      }
+    </div>`;
+  }).join('');
+}
+
+function updateRouteProgress() {
+  const progressWrap = document.getElementById('routeProgress');
+  if (optimizedStops.length === 0) {
+    progressWrap.style.display = 'none';
+    return;
+  }
+  const delivered = optimizedStops.filter(s => s.order.status === 'entregado').length;
+  const total = optimizedStops.length;
+  const pct = total > 0 ? Math.round((delivered / total) * 100) : 0;
+  progressWrap.style.display = 'flex';
+  document.getElementById('routeProgressBar').style.width = pct + '%';
+  document.getElementById('routeProgressText').textContent = `${delivered} / ${total} entregas (${pct}%)`;
+}
+
+function startDeliveries() {
+  if (optimizedStops.length === 0) return;
+  routeStarted = true;
+  toast('🚀 Ruta optimizada — ¡a entregar!', 'success');
+  renderRouteStops();
+
+  // Scroll to the next pending stop
+  const nextEl = document.querySelector('.route-stop.next-stop');
+  if (nextEl) nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function openInGoogleMaps() {
+  if (optimizedStops.length === 0) return;
+  // Build Google Maps directions URL
+  // Origin: HOME_BASE, Destination: last stop, Waypoints: all intermediate stops
+  const origin = `${HOME_BASE.lat},${HOME_BASE.lng}`;
+  const pendingStops = optimizedStops.filter(s => s.order.status !== 'entregado');
+  const stopsToNavigate = pendingStops.length > 0 ? pendingStops : optimizedStops;
+
+  if (stopsToNavigate.length === 1) {
+    const dest = `${stopsToNavigate[0].client.lat},${stopsToNavigate[0].client.lng}`;
+    window.open(`https://www.google.com/maps/dir/${origin}/${dest}`, '_blank');
+    return;
+  }
+
+  const destination = `${stopsToNavigate[stopsToNavigate.length - 1].client.lat},${stopsToNavigate[stopsToNavigate.length - 1].client.lng}`;
+  const waypoints = stopsToNavigate.slice(0, -1).map(s => `${s.client.lat},${s.client.lng}`).join('|');
+  window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`, '_blank');
 }
 
 // ==========================================
