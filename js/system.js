@@ -8,10 +8,13 @@ let currentRole = null;
 
 // ---- Productos del catálogo ----
 const PRODUCTS = [
-  { id: 'maiz',    name: 'Tortilla de Maíz',         price: 15, unit: 'docena', emoji: '🌽' },
-  { id: 'moringa', name: 'Tortilla de Moringa',       price: 30, unit: 'docena', emoji: '🌿' },
-  { id: 'nopal',   name: 'Tortilla de Nopal',         price: 25, unit: 'docena', emoji: '🌵' },
-  { id: 'pasilla', name: 'Tortilla de Chile Pasilla', price: 25, unit: 'docena', emoji: '🌶️' },
+  { id: 'maiz',       name: 'Tortilla de Maíz',         price: 15, unit: 'docena', emoji: '🌽' },
+  { id: 'moringa',    name: 'Tortilla de Moringa',       price: 30, unit: 'docena', emoji: '🌿' },
+  { id: 'nopal',      name: 'Tortilla de Nopal',         price: 25, unit: 'docena', emoji: '🌵' },
+  { id: 'pasilla',    name: 'Tortilla de Chile Pasilla', price: 25, unit: 'docena', emoji: '🌶️' },
+  { id: 'agua_medio', name: 'Agua ½ litro',              price: 35, unit: 'pieza',  emoji: '💧' },
+  { id: 'agua_litro', name: 'Agua 1 litro',              price: 45, unit: 'pieza',  emoji: '🚰' },
+  { id: 'salsa',      name: 'Salsa',                     price: 35, unit: 'pieza',  emoji: '🫙' },
 ];
 
 // ---- Almacenamiento ----
@@ -35,6 +38,9 @@ function initSampleData() {
     { id: 'chile_pasilla', name: 'Chile pasilla seco', qty: 1.5,  unit: 'docena', threshold: 2,   cost: 80 },
     { id: 'cal',           name: 'Cal',                qty: 10,   unit: 'docena', threshold: 3,   cost: 5 },
     { id: 'gas',           name: 'Gas LP',             qty: 1,    unit: 'litro',  threshold: 1,   cost: 300 },
+    { id: 'agua_medio',    name: 'Agua ½ litro',       qty: 12,   unit: 'litro',  threshold: 5,   cost: 10,  litersPerUnit: 0.5 },
+    { id: 'agua_litro',    name: 'Agua 1 litro',       qty: 20,   unit: 'litro',  threshold: 5,   cost: 15,  litersPerUnit: 1 },
+    { id: 'salsa',         name: 'Salsa',              qty: 24,   unit: 'pieza',  threshold: 8,   cost: 12 },
   ];
   setData('inventory', inventory);
 
@@ -296,12 +302,14 @@ function renderResumen() {
   if (recentSales.length === 0) {
     rsl.innerHTML = '<p class="empty-msg">Sin ventas hoy</p>';
   } else {
-    rsl.innerHTML = recentSales.map(s =>
-      `<div class="recent-item">
-        <span class="ri-label">${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')} — ${s.qty} docenas</span>
+    rsl.innerHTML = recentSales.map(s => {
+      const prod = PRODUCTS.find(p => p.id === s.productId);
+      const unitLabel = prod ? prod.unit : 'docena';
+      return `<div class="recent-item">
+        <span class="ri-label">${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')} — ${s.qty} ${unitLabel}${s.qty !== 1 ? 's' : ''}</span>
         <span class="ri-value green">${fmt(s.total)}</span>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
   }
 
   // Recent transactions
@@ -356,11 +364,11 @@ function renderPOS() {
 function renderProductButtons() {
   const inventory = getData('inventory', []);
   const html = PRODUCTS.map(p => {
-    const invItem = inventory.find(i => i.id.includes(p.id.split('_')[0]));
+    const invItem = inventory.find(i => i.id === p.id) || inventory.find(i => i.id.includes(p.id.split('_')[0]));
     const stockInfo = invItem ? `${invItem.qty} ${invItem.unit} disponibles` : '';
     return `<button class="product-btn" onclick="addToOrder('${p.id}')">
       <span class="pb-name">${p.emoji} ${p.name.replace('Tortilla de ', '')}</span>
-      <span class="pb-price">${fmt(p.price)} / docena</span>
+      <span class="pb-price">${fmt(p.price)} / ${p.unit}</span>
       ${stockInfo ? `<span class="pb-qty">📦 ${stockInfo}</span>` : ''}
     </button>`;
   }).join('');
@@ -388,18 +396,20 @@ function renderOrderItems() {
     document.getElementById('changeDisplay').textContent = '$0.00';
     return;
   }
-  container.innerHTML = currentOrder.map((item, idx) =>
-    `<div class="order-item">
+  container.innerHTML = currentOrder.map((item, idx) => {
+    const prod = PRODUCTS.find(p => p.id === item.productId);
+    const unitLabel = prod ? prod.unit + (item.qty !== 1 ? 's' : '') : 'docenas';
+    return `<div class="order-item">
       <span>${item.emoji} ${item.productName.replace('Tortilla de ', '')}</span>
       <div class="oi-controls">
         <button class="oi-btn" onclick="changeQty(${idx}, -1)">−</button>
-        <span class="oi-qty">${item.qty} docenas</span>
+        <span class="oi-qty">${item.qty} ${unitLabel}</span>
         <button class="oi-btn" onclick="changeQty(${idx}, 1)">+</button>
         <span style="min-width:60px;text-align:right;font-weight:600;">${fmt(item.total)}</span>
         <button class="oi-btn" style="color:var(--sys-red)" onclick="removeItem(${idx})">✕</button>
       </div>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);
   document.getElementById('orderSubtotal').textContent = fmt(subtotal);
   updateChange();
@@ -455,16 +465,18 @@ function renderSalesToday() {
     return;
   }
   const sorted = [...sales].reverse();
-  body.innerHTML = sorted.map(s =>
-    `<tr>
+  body.innerHTML = sorted.map(s => {
+    const prod = PRODUCTS.find(p => p.id === s.productId);
+    const unitLabel = prod ? prod.unit : 'docena';
+    return `<tr>
       <td>${s.time}</td>
       <td>${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')}</td>
-      <td>${s.qty} docenas</td>
-      <td>${fmt(s.price)}/docena</td>
+      <td>${s.qty} ${unitLabel}${s.qty !== 1 ? 's' : ''}</td>
+      <td>${fmt(s.price)}/${unitLabel}</td>
       <td><strong>${fmt(s.total)}</strong></td>
       <td>${s.payment === 'efectivo' ? '💵' : '📲'} ${s.payment}</td>
-    </tr>`
-  ).join('');
+    </tr>`;
+  }).join('');
   const total = sales.reduce((a, s) => a + s.total, 0);
   document.getElementById('salesTodayTotal').textContent = 'Total: ' + fmt(total);
 }
@@ -639,7 +651,9 @@ function renderInventario() {
     const barColor = statusClass === 'ok' ? 'var(--sys-green)' : statusClass === 'low' ? 'var(--sys-yellow)' : 'var(--sys-red)';
     const yieldLine = item.unit === 'kg'
       ? `<div class="inv-yield-display">🫓 Rendimiento estimado: <strong>${(item.qty * KG_TO_DOCENAS).toFixed(1)} docenas</strong></div>`
-      : '';
+      : (item.unit === 'litro' && item.litersPerUnit)
+        ? `<div class="inv-yield-display">📦 Unidades estimadas: <strong>${(item.qty / item.litersPerUnit).toFixed(0)} piezas</strong></div>`
+        : '';
     return `<div class="inv-card ${cardClass}">
       <div class="inv-card-info">
         <div class="inv-card-name">${item.name}</div>
@@ -910,9 +924,11 @@ function renderOrderList() {
     // Support both legacy single-product orders and new multi-product orders
     const items = o.items || [{ productName: o.productName, qty: o.qty, total: o.total }];
     const orderTotal = o.total || items.reduce((a, i) => a + (i.total || 0), 0);
-    const productsHtml = items.map(i =>
-      `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ','')} — ${i.qty} doc. — ${fmt(i.total)}</div>`
-    ).join('');
+    const productsHtml = items.map(i => {
+      const prod = PRODUCTS.find(p => p.id === i.productId);
+      const unitLabel = prod ? prod.unit : 'doc';
+      return `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ','')} — ${i.qty} ${unitLabel}${i.qty !== 1 ? 's' : ''} — ${fmt(i.total)}</div>`;
+    }).join('');
     return `<div class="order-card-new">
       <div class="order-card-top">
         <button class="order-delete-icon" onclick="deleteOrder('${o.id}')" title="Eliminar pedido">🗑️</button>
@@ -944,7 +960,7 @@ function renderOrderProductGrid() {
     return `<button type="button" class="order-grid-btn ${qty > 0 ? 'active' : ''}" data-product="${p.id}">
       <span class="og-emoji">${p.emoji}</span>
       <span class="og-name">${p.name.replace('Tortilla de ', '')}</span>
-      <span class="og-price">${fmt(p.price)}/doc</span>
+      <span class="og-price">${fmt(p.price)}/${p.unit}</span>
       ${qty > 0 ? `<span class="og-badge">${qty}</span>` : ''}
     </button>`;
   }).join('');
