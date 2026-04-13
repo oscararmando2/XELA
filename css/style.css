@@ -22,6 +22,11 @@
   --shadow: 0 4px 20px rgba(0,0,0,0.1);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.15);
   --transition: 0.3s ease;
+  --nav-height: 68px;
+  --color-btc: #F7931A;
+  --color-sol: #9945FF;
+  --color-eth: #627EEA;
+  --color-xrp: #fff;
 }
 
 /* ---- Reset & Base ---- */
@@ -146,7 +151,7 @@ p { margin-bottom: 1rem; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 68px;
+  height: var(--nav-height);
 }
 .nav-brand {
   display: flex;
@@ -199,8 +204,8 @@ p { margin-bottom: 1rem; }
    CRYPTO MARQUEE
    ========================================== */
 .crypto-marquee {
-  margin-top: 68px;
-  height: 68px;
+  margin-top: var(--nav-height);
+  height: var(--nav-height);
   background: #111;
   overflow: hidden;
   display: flex;
@@ -234,6 +239,10 @@ p { margin-bottom: 1rem; }
   font-family: var(--font-body);
   letter-spacing: 0.5px;
 }
+.crypto-name-btc { color: var(--color-btc); }
+.crypto-name-sol { color: var(--color-sol); }
+.crypto-name-eth { color: var(--color-eth); }
+.crypto-name-xrp { color: var(--color-xrp); }
 .crypto-dot {
   color: rgba(255,255,255,0.25);
   font-size: 0.7rem;
@@ -255,7 +264,8 @@ p { margin-bottom: 1rem; }
    HERO
    ========================================== */
 .hero {
-  min-height: calc(100vh - 136px);
+  /* nav-height + marquee-height = 68px + 68px = 136px */
+  min-height: calc(100vh - var(--nav-height) - var(--nav-height));
   background: linear-gradient(
     135deg,
     #8C1500 0%,
@@ -749,7 +759,7 @@ p { margin-bottom: 1rem; }
   .nav-links {
     display: none;
     position: absolute;
-    top: 68px;
+    top: var(--nav-height);
     left: 0;
     right: 0;
     background: #fff;
