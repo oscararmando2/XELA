@@ -29,12 +29,12 @@ function initSampleData() {
 
   // Inventario inicial
   const inventory = [
-    { id: 'masa_maiz',    name: 'Masa de maíz',        qty: 25,  unit: 'docena', threshold: 10, cost: 12 },
-    { id: 'moringa_polvo', name: 'Moringa en polvo',   qty: 3.5, unit: 'docena', threshold: 2,  cost: 180 },
-    { id: 'nopal_fresco',  name: 'Nopal fresco',       qty: 8,   unit: 'docena', threshold: 5,  cost: 15 },
-    { id: 'chile_pasilla', name: 'Chile pasilla seco', qty: 1.5, unit: 'docena', threshold: 2,  cost: 80 },
-    { id: 'cal',           name: 'Cal',                qty: 10,  unit: 'docena', threshold: 3,  cost: 5 },
-    { id: 'gas',           name: 'Gas LP',             qty: 1,   unit: 'docena', threshold: 1,  cost: 300 },
+    { id: 'masa_maiz',    name: 'Masa de maíz',        qty: 6.25, unit: 'kg',     threshold: 2.5, cost: 12 },
+    { id: 'moringa_polvo', name: 'Moringa en polvo',   qty: 0.875, unit: 'kg',     threshold: 0.5,  cost: 180 },
+    { id: 'nopal_fresco',  name: 'Nopal fresco',       qty: 2,     unit: 'kg',     threshold: 1.25, cost: 15 },
+    { id: 'chile_pasilla', name: 'Chile pasilla seco', qty: 1.5,  unit: 'docena', threshold: 2,   cost: 80 },
+    { id: 'cal',           name: 'Cal',                qty: 10,   unit: 'docena', threshold: 3,   cost: 5 },
+    { id: 'gas',           name: 'Gas LP',             qty: 1,    unit: 'litro',  threshold: 1,   cost: 300 },
   ];
   setData('inventory', inventory);
 
@@ -100,6 +100,9 @@ function initSampleData() {
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+// ---- Conversión kg → docenas (1 kg masa = 4 docenas) ----
+const KG_TO_DOCENAS = 4;
 
 // ---- Formato dinero ----
 function fmt(n) { return '$' + parseFloat(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -579,6 +582,21 @@ function deleteTransaction(id) {
 // MÓDULO: INVENTARIO
 // ==========================================
 function initInventario() {
+  // Live yield preview
+  function updateYieldPreview() {
+    const qty = parseFloat(document.getElementById('invQty').value) || 0;
+    const unit = document.getElementById('invUnit').value;
+    const preview = document.getElementById('invYieldPreview');
+    if (unit === 'kg' && qty > 0) {
+      document.getElementById('invYieldValue').textContent = (qty * KG_TO_DOCENAS).toFixed(1);
+      preview.style.display = 'block';
+    } else {
+      preview.style.display = 'none';
+    }
+  }
+  document.getElementById('invQty').addEventListener('input', updateYieldPreview);
+  document.getElementById('invUnit').addEventListener('change', updateYieldPreview);
+
   document.getElementById('inventoryForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const name = document.getElementById('invName').value.trim();
@@ -599,6 +617,7 @@ function initInventario() {
     }
     setData('inventory', inventory);
     this.reset();
+    document.getElementById('invYieldPreview').style.display = 'none';
     renderInventario();
     updateLowStockBadge();
   });
@@ -618,10 +637,14 @@ function renderInventario() {
     if (item.qty === 0) { statusClass = 'out'; statusText = '🚨 Agotado'; cardClass = 'out'; }
     else if (item.qty <= item.threshold) { statusClass = 'low'; statusText = '⚠️ Stock bajo'; cardClass = 'low'; }
     const barColor = statusClass === 'ok' ? 'var(--sys-green)' : statusClass === 'low' ? 'var(--sys-yellow)' : 'var(--sys-red)';
+    const yieldLine = item.unit === 'kg'
+      ? `<div class="inv-yield-display">🫓 Rendimiento estimado: <strong>${(item.qty * KG_TO_DOCENAS).toFixed(1)} docenas</strong></div>`
+      : '';
     return `<div class="inv-card ${cardClass}">
       <div class="inv-card-info">
         <div class="inv-card-name">${item.name}</div>
         <div class="inv-card-qty">${item.qty} ${item.unit} — Mínimo: ${item.threshold} ${item.unit} ${item.cost ? `— $${item.cost}/u` : ''}</div>
+        ${yieldLine}
         <div class="inv-progress"><div class="inv-progress-bar" style="width:${pct}%;background:${barColor}"></div></div>
       </div>
       <div style="text-align:right;flex-shrink:0;">

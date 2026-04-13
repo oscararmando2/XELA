@@ -711,6 +711,25 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
 .inv-card-info { flex: 1; }
 .inv-card-name { font-weight: 700; font-size: 0.9rem; }
 .inv-card-qty { font-size: 0.82rem; color: var(--sys-text-muted); margin-top: 0.1rem; }
+.inv-yield-display {
+  font-size: 0.82rem;
+  color: #744210;
+  background: #FEFCE8;
+  border: 1px solid #FDE68A;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  margin-top: 0.3rem;
+  display: inline-block;
+}
+.inv-yield-preview {
+  font-size: 0.85rem;
+  color: #744210;
+  background: #FEFCE8;
+  border: 1px solid #FDE68A;
+  border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+  margin-top: 0.3rem;
+}
 .inv-card-status { font-size: 0.78rem; font-weight: 700; }
 .inv-status-ok { color: var(--sys-green); }
 .inv-status-low { color: var(--sys-yellow); }
