@@ -22,6 +22,11 @@
   --shadow: 0 4px 20px rgba(0,0,0,0.1);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.15);
   --transition: 0.3s ease;
+  --nav-height: 68px;
+  --color-btc: #F7931A;
+  --color-sol: #9945FF;
+  --color-eth: #627EEA;
+  --color-xrp: #fff;
 }
 
 /* ---- Reset & Base ---- */
@@ -146,7 +151,7 @@ p { margin-bottom: 1rem; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 68px;
+  height: var(--nav-height);
 }
 .nav-brand {
   display: flex;
@@ -196,10 +201,71 @@ p { margin-bottom: 1rem; }
 }
 
 /* ==========================================
+   CRYPTO MARQUEE
+   ========================================== */
+.crypto-marquee {
+  margin-top: var(--nav-height);
+  height: var(--nav-height);
+  background: #111;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 100;
+}
+.crypto-marquee-track {
+  display: flex;
+  animation: crypto-scroll 20s linear infinite;
+}
+.crypto-marquee-content {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0 0.75rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.crypto-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.crypto-icon {
+  flex-shrink: 0;
+}
+.crypto-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  letter-spacing: 0.5px;
+}
+.crypto-name-btc { color: var(--color-btc); }
+.crypto-name-sol { color: var(--color-sol); }
+.crypto-name-eth { color: var(--color-eth); }
+.crypto-name-xrp { color: var(--color-xrp); }
+.crypto-dot {
+  color: rgba(255,255,255,0.25);
+  font-size: 0.7rem;
+}
+.crypto-text {
+  color: rgba(255,255,255,0.85);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-family: var(--font-body);
+}
+@keyframes crypto-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ==========================================
    HERO
    ========================================== */
 .hero {
-  min-height: 100vh;
+  /* nav-height + marquee-height = 68px + 68px = 136px */
+  min-height: calc(100vh - var(--nav-height) - var(--nav-height));
   background: linear-gradient(
     135deg,
     #8C1500 0%,
@@ -693,7 +759,7 @@ p { margin-bottom: 1rem; }
   .nav-links {
     display: none;
     position: absolute;
-    top: 68px;
+    top: var(--nav-height);
     left: 0;
     right: 0;
     background: #fff;
