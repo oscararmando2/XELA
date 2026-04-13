@@ -1078,6 +1078,10 @@ function loadRoute() {
   // Currently loads delivery orders from localStorage. When migrating to Firebase,
   // replace these getData() calls with a Firestore onSnapshot or Realtime Database
   // listener that filters orders by date and updates the UI reactively.
+  // The listener should:
+  //   1. Query orders where order.date === selectedDate
+  //   2. Query the clients collection for client details
+  //   3. On each snapshot update, rebuild optimizedStops and call loadRoute() to refresh the map and list
   const orders = getData('orders', []).filter(o => o.date === date);
   const clients = getData('clients', []);
 
