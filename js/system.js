@@ -110,6 +110,9 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 // ---- Conversión kg → docenas (1 kg masa = 4 docenas) ----
 const KG_TO_DOCENAS = 4;
 
+// ---- Pluralización de unidades (español) ----
+function pluralUnit(unit, qty) { return qty === 1 ? unit : unit + 's'; }
+
 // ---- Formato dinero ----
 function fmt(n) { return '$' + parseFloat(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
@@ -306,7 +309,7 @@ function renderResumen() {
       const prod = PRODUCTS.find(p => p.id === s.productId);
       const unitLabel = prod ? prod.unit : 'docena';
       return `<div class="recent-item">
-        <span class="ri-label">${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')} — ${s.qty} ${unitLabel}${s.qty !== 1 ? 's' : ''}</span>
+        <span class="ri-label">${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')} — ${s.qty} ${pluralUnit(unitLabel, s.qty)}</span>
         <span class="ri-value green">${fmt(s.total)}</span>
       </div>`;
     }).join('');
@@ -364,6 +367,7 @@ function renderPOS() {
 function renderProductButtons() {
   const inventory = getData('inventory', []);
   const html = PRODUCTS.map(p => {
+    // Exact match first; fall back to prefix match for legacy inventory IDs (e.g. masa_maiz → maiz)
     const invItem = inventory.find(i => i.id === p.id) || inventory.find(i => i.id.includes(p.id.split('_')[0]));
     const stockInfo = invItem ? `${invItem.qty} ${invItem.unit} disponibles` : '';
     return `<button class="product-btn" onclick="addToOrder('${p.id}')">
@@ -398,7 +402,7 @@ function renderOrderItems() {
   }
   container.innerHTML = currentOrder.map((item, idx) => {
     const prod = PRODUCTS.find(p => p.id === item.productId);
-    const unitLabel = prod ? prod.unit + (item.qty !== 1 ? 's' : '') : 'docenas';
+    const unitLabel = prod ? pluralUnit(prod.unit, item.qty) : 'docenas';
     return `<div class="order-item">
       <span>${item.emoji} ${item.productName.replace('Tortilla de ', '')}</span>
       <div class="oi-controls">
@@ -471,7 +475,7 @@ function renderSalesToday() {
     return `<tr>
       <td>${s.time}</td>
       <td>${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')}</td>
-      <td>${s.qty} ${unitLabel}${s.qty !== 1 ? 's' : ''}</td>
+      <td>${s.qty} ${pluralUnit(unitLabel, s.qty)}</td>
       <td>${fmt(s.price)}/${unitLabel}</td>
       <td><strong>${fmt(s.total)}</strong></td>
       <td>${s.payment === 'efectivo' ? '💵' : '📲'} ${s.payment}</td>
@@ -649,11 +653,12 @@ function renderInventario() {
     if (item.qty === 0) { statusClass = 'out'; statusText = '🚨 Agotado'; cardClass = 'out'; }
     else if (item.qty <= item.threshold) { statusClass = 'low'; statusText = '⚠️ Stock bajo'; cardClass = 'low'; }
     const barColor = statusClass === 'ok' ? 'var(--sys-green)' : statusClass === 'low' ? 'var(--sys-yellow)' : 'var(--sys-red)';
-    const yieldLine = item.unit === 'kg'
-      ? `<div class="inv-yield-display">🫓 Rendimiento estimado: <strong>${(item.qty * KG_TO_DOCENAS).toFixed(1)} docenas</strong></div>`
-      : (item.unit === 'litro' && item.litersPerUnit)
-        ? `<div class="inv-yield-display">📦 Unidades estimadas: <strong>${(item.qty / item.litersPerUnit).toFixed(0)} piezas</strong></div>`
-        : '';
+    let yieldLine = '';
+    if (item.unit === 'kg') {
+      yieldLine = `<div class="inv-yield-display">🫓 Rendimiento estimado: <strong>${(item.qty * KG_TO_DOCENAS).toFixed(1)} docenas</strong></div>`;
+    } else if (item.unit === 'litro' && item.litersPerUnit) {
+      yieldLine = `<div class="inv-yield-display">📦 Unidades estimadas: <strong>${(item.qty / item.litersPerUnit).toFixed(0)} piezas</strong></div>`;
+    }
     return `<div class="inv-card ${cardClass}">
       <div class="inv-card-info">
         <div class="inv-card-name">${item.name}</div>
@@ -927,7 +932,7 @@ function renderOrderList() {
     const productsHtml = items.map(i => {
       const prod = PRODUCTS.find(p => p.id === i.productId);
       const unitLabel = prod ? prod.unit : 'doc';
-      return `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ','')} — ${i.qty} ${unitLabel}${i.qty !== 1 ? 's' : ''} — ${fmt(i.total)}</div>`;
+      return `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ','')} — ${i.qty} ${pluralUnit(unitLabel, i.qty)} — ${fmt(i.total)}</div>`;
     }).join('');
     return `<div class="order-card-new">
       <div class="order-card-top">
