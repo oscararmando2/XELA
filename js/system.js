@@ -1713,10 +1713,6 @@ function downloadReportPDF() {
   const margin = 15;
   let y = margin;
 
-  // --- Logo ---
-  const logoImg = new Image();
-  logoImg.src = '../logoxela.png';
-
   const buildPdf = (logoDataUrl) => {
     // Logo
     if (logoDataUrl) {
