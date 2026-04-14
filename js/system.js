@@ -20,13 +20,105 @@ const PRODUCTS = [
   { id: 'salsa',      name: 'Salsa',                     price: 35, unit: 'pieza',  emoji: '🫙' },
 ];
 
-// ---- Almacenamiento ----
-function getData(key, def) {
-  try { return JSON.parse(localStorage.getItem('xela_' + key)) || def; }
-  catch { return def; }
+// ---- Firestore collection name mapping ----
+const COLLECTION_MAP = {
+  sales:        'ventas',
+  transactions: 'gastos',
+  inventory:    'inventario',
+  clients:      'clientes',
+  orders:       'pedidos',
+  cortes:       'cortes',
+};
+const CONFIG_KEYS = ['initialized', 'corte_last_date'];
+
+// ---- In-memory cache (mirrors Firestore state) ----
+const _cache = {};
+
+// ---- Firestore ready tracking (resolves after first snapshot per collection) ----
+const _readyResolvers = {};
+const _readyPromises = {};
+[...Object.keys(COLLECTION_MAP), 'config'].forEach(k => {
+  _readyPromises[k] = new Promise(r => { _readyResolvers[k] = r; });
+});
+
+// ---- Set up real-time Firestore listeners immediately on page load ----
+(function setupFirestoreListeners() {
+  Object.entries(COLLECTION_MAP).forEach(([key, colName]) => {
+    db.collection(colName).onSnapshot(snapshot => {
+      _cache[key] = [];
+      snapshot.forEach(doc => _cache[key].push(doc.data()));
+      if (_readyResolvers[key]) { _readyResolvers[key](); delete _readyResolvers[key]; }
+      _refreshUI(key);
+    }, err => {
+      console.error('Firestore error [' + colName + ']:', err);
+      if (!_cache[key]) _cache[key] = [];
+      if (_readyResolvers[key]) { _readyResolvers[key](); delete _readyResolvers[key]; }
+    });
+  });
+
+  db.collection('config').doc('settings').onSnapshot(doc => {
+    const data = doc.exists ? doc.data() : {};
+    CONFIG_KEYS.forEach(k => { _cache[k] = data[k]; });
+    if (_readyResolvers['config']) { _readyResolvers['config'](); delete _readyResolvers['config']; }
+  }, err => {
+    console.error('Firestore config error:', err);
+    if (_readyResolvers['config']) { _readyResolvers['config'](); delete _readyResolvers['config']; }
+  });
+})();
+
+// ---- Wait for all Firestore collections to deliver their first snapshot ----
+function waitForFirestore() {
+  return Promise.all(Object.values(_readyPromises));
 }
+
+// ---- Re-render UI when Firestore data changes from another device ----
+function _refreshUI(key) {
+  if (!currentRole) return;
+  const dash = document.getElementById('dashboard');
+  if (!dash || dash.style.display === 'none') return;
+  try {
+    switch (key) {
+      case 'sales':
+        renderResumen(); renderSalesToday(); renderContador(); break;
+      case 'transactions':
+        renderResumen(); renderContador(); break;
+      case 'inventory':
+        renderInventario(); updateLowStockBadge(); renderProductButtons(); break;
+      case 'clients':
+        if (document.getElementById('mod-crm').classList.contains('active')) renderClientList(); break;
+      case 'orders':
+        if (document.getElementById('mod-crm').classList.contains('active')) renderCRM(); break;
+      case 'cortes':
+        renderContador(); break;
+    }
+  } catch (e) { /* ignore render errors during initialization */ }
+}
+
+// ---- Storage API (replaces localStorage) ----
+function getData(key, def) {
+  const val = _cache[key];
+  if (val !== undefined && val !== null) return val;
+  return def;
+}
+
 function setData(key, val) {
-  localStorage.setItem('xela_' + key, JSON.stringify(val));
+  if (CONFIG_KEYS.includes(key)) {
+    _cache[key] = val;
+    db.collection('config').doc('settings').set({ [key]: val }, { merge: true })
+      .catch(e => console.error('Firestore config write error:', e));
+    return;
+  }
+  const colName = COLLECTION_MAP[key];
+  if (!colName) return;
+
+  const prev = _cache[key] || [];
+  _cache[key] = val;
+
+  const newIds = new Set(val.map(d => String(d.id)));
+  const batch = db.batch();
+  val.forEach(item => batch.set(db.collection(colName).doc(String(item.id)), item));
+  prev.forEach(item => { if (!newIds.has(String(item.id))) batch.delete(db.collection(colName).doc(String(item.id))); });
+  batch.commit().catch(e => console.error('Firestore write error [' + colName + ']:', e));
 }
 
 // ---- Inicializar datos de muestra si están vacíos ----
@@ -160,13 +252,17 @@ document.querySelectorAll('.role-option input[name="loginRole"]').forEach(radio 
   });
 });
 
-document.getElementById('loginForm').addEventListener('submit', function(e) {
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
   e.preventDefault();
   const pw = document.getElementById('loginPassword').value;
   const role = document.querySelector('input[name="loginRole"]:checked').value;
   const err = document.getElementById('loginError');
   if (pw === PASSWORDS[role]) {
     currentRole = role;
+    const btn = this.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Conectando…'; }
+    await waitForFirestore();
+    if (btn) { btn.disabled = false; btn.textContent = 'Entrar al Sistema'; }
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('dashboard').style.display = 'flex';
     initSampleData();
@@ -1605,14 +1701,6 @@ function loadRoute() {
   if (!deliveryMap) return;
   const date = document.getElementById('mapDateFilter').value;
 
-  // TODO: Replace with Firebase real-time listener
-  // Currently loads delivery orders from localStorage. When migrating to Firebase,
-  // replace these getData() calls with a Firestore onSnapshot or Realtime Database
-  // listener that filters orders by date and updates the UI reactively.
-  // The listener should:
-  //   1. Query orders where order.date === selectedDate
-  //   2. Query the clients collection for client details
-  //   3. On each snapshot update, rebuild optimizedStops and call loadRoute() to refresh the map and list
   const orders = getData('orders', []).filter(o => o.date === date);
   const clients = getData('clients', []);
 
