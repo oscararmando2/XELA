@@ -91,13 +91,13 @@ function _refreshUI(key) {
       case 'cortes':
         renderContador(); break;
     }
-  } catch (e) { /* ignore render errors during initialization */ }
+  } catch (e) { console.error('UI refresh error for ' + key + ':', e); }
 }
 
 // ---- Storage API (replaces localStorage) ----
 function getData(key, def) {
   const val = _cache[key];
-  if (val !== undefined && val !== null) return val;
+  if (val !== undefined) return val;
   return def;
 }
 
@@ -114,10 +114,11 @@ function setData(key, val) {
   const prev = _cache[key] || [];
   _cache[key] = val;
 
-  const newIds = new Set(val.map(d => String(d.id)));
+  const validItems = val.filter(d => d.id !== undefined && d.id !== null);
+  const newIds = new Set(validItems.map(d => String(d.id)));
   const batch = db.batch();
-  val.forEach(item => batch.set(db.collection(colName).doc(String(item.id)), item));
-  prev.forEach(item => { if (!newIds.has(String(item.id))) batch.delete(db.collection(colName).doc(String(item.id))); });
+  validItems.forEach(item => batch.set(db.collection(colName).doc(String(item.id)), item));
+  prev.forEach(item => { if (item.id !== undefined && item.id !== null && !newIds.has(String(item.id))) batch.delete(db.collection(colName).doc(String(item.id))); });
   batch.commit().catch(e => console.error('Firestore write error [' + colName + ']:', e));
 }
 
