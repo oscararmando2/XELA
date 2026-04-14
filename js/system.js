@@ -1271,11 +1271,11 @@ function openInGoogleMaps() {
 // MÓDULO: REPORTES
 // ==========================================
 function initReportes() {
-  // Default range: last 7 days
+  // Default range: last 7 days (6 days ago through today)
   const today = new Date();
-  const sevenDaysAgo = new Date(today);
-  sevenDaysAgo.setDate(today.getDate() - 6);
-  document.getElementById('reportStartDate').value = sevenDaysAgo.toISOString().split('T')[0];
+  const rangeStart = new Date(today);
+  rangeStart.setDate(today.getDate() - 6);
+  document.getElementById('reportStartDate').value = rangeStart.toISOString().split('T')[0];
   document.getElementById('reportEndDate').value = today.toISOString().split('T')[0];
 
   document.getElementById('generateReportBtn').addEventListener('click', generateReport);
