@@ -53,7 +53,7 @@ function initSampleData() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const ds = d.toISOString().split('T')[0];
+    const ds = localDateStr(d);
     transactions.push(
       { id: uid(), date: ds, type: 'ingreso', desc: 'Ventas del día', amount: Math.floor(300 + Math.random() * 400) },
       { id: uid(), date: ds, type: 'gasto',   desc: 'Compra de masa', amount: Math.floor(80 + Math.random() * 60) }
@@ -67,7 +67,7 @@ function initSampleData() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const ds = d.toISOString().split('T')[0];
+    const ds = localDateStr(d);
     PRODUCTS.forEach(p => {
       const qty = parseFloat((1 + Math.random() * 4).toFixed(0));
       sales.push({ id: uid(), date: ds, time: '09:30', productId: p.id, productName: p.name, qty, price: p.price, total: qty * p.price, payment: 'efectivo' });
@@ -86,7 +86,7 @@ function initSampleData() {
   // Pedidos de muestra
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tmStr = tomorrow.toISOString().split('T')[0];
+  const tmStr = localDateStr(tomorrow);
   const orders = [
     { id: uid(), clientId: clients[0].id, clientName: clients[0].name, clientAddress: clients[0].address,
       items: [
@@ -124,8 +124,12 @@ function pluralUnit(unit, qty) { return qty === 1 ? unit : unit + 's'; }
 // ---- Formato dinero ----
 function fmt(n) { return '$' + parseFloat(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
-// ---- Fecha hoy ----
-function today() { return new Date().toISOString().split('T')[0]; }
+// ---- Fecha hoy (local, no UTC) ----
+function localDateStr(d) {
+  const dt = d || new Date();
+  return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+}
+function today() { return localDateStr(); }
 
 // ---- Toast ----
 function toast(msg, type = 'success') {
@@ -1582,8 +1586,8 @@ function initReportes() {
   const today = new Date();
   const rangeStart = new Date(today);
   rangeStart.setDate(today.getDate() - 6);
-  document.getElementById('reportStartDate').value = rangeStart.toISOString().split('T')[0];
-  document.getElementById('reportEndDate').value = today.toISOString().split('T')[0];
+  document.getElementById('reportStartDate').value = localDateStr(rangeStart);
+  document.getElementById('reportEndDate').value = localDateStr(today);
 
   document.getElementById('generateReportBtn').addEventListener('click', generateReport);
 }
@@ -1643,7 +1647,7 @@ function generateReport() {
   const days = [];
   const cur = new Date(startDate);
   while (cur <= endDate) {
-    days.push(cur.toISOString().split('T')[0]);
+    days.push(localDateStr(cur));
     cur.setDate(cur.getDate() + 1);
   }
   const dayLabels = { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb', 0: 'Dom' };
