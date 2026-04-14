@@ -107,6 +107,11 @@ function initSampleData() {
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
+// ---- HTML escape to prevent XSS ----
+function esc(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ---- Conversión kg → docenas (1 kg masa = 4 docenas) ----
 const KG_TO_DOCENAS = 4;
 
@@ -351,6 +356,8 @@ function initPOS() {
   });
 
   document.getElementById('cashReceived').addEventListener('input', updateChange);
+  document.getElementById('discountValue')?.addEventListener('input', () => { renderOrderItems(); });
+  document.getElementById('discountType')?.addEventListener('change', () => { renderOrderItems(); });
 
   document.getElementById('confirmSaleBtn').addEventListener('click', confirmSale);
   document.getElementById('clearOrderBtn').addEventListener('click', () => {
@@ -414,12 +421,24 @@ function renderSmartPaymentButtons(subtotal) {
   container.style.display = 'grid';
 }
 
+function getDiscount(subtotal) {
+  const type = document.getElementById('discountType')?.value || 'pct';
+  const val = parseFloat(document.getElementById('discountValue')?.value) || 0;
+  if (!val || val <= 0) return 0;
+  if (type === 'pct') return Math.min(subtotal, subtotal * val / 100);
+  return Math.min(subtotal, val);
+}
+
 function renderOrderItems() {
   const container = document.getElementById('orderItems');
   if (currentOrder.length === 0) {
     container.innerHTML = '<p class="empty-msg">Agrega productos para comenzar</p>';
     document.getElementById('orderSubtotal').textContent = '$0.00';
     document.getElementById('changeDisplay').textContent = '$0.00';
+    const discountRow = document.getElementById('discountAmountRow');
+    if (discountRow) discountRow.style.display = 'none';
+    const finalTotalEl = document.getElementById('orderFinalTotal');
+    if (finalTotalEl) finalTotalEl.textContent = '$0.00';
     renderSmartPaymentButtons(0);
     return;
   }
@@ -439,6 +458,18 @@ function renderOrderItems() {
   }).join('');
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);
   document.getElementById('orderSubtotal').textContent = fmt(subtotal);
+  const discount = getDiscount(subtotal);
+  const discountRow = document.getElementById('discountAmountRow');
+  if (discountRow) {
+    if (discount > 0) {
+      discountRow.style.display = 'flex';
+      document.getElementById('discountAmount').textContent = '-' + fmt(discount);
+    } else {
+      discountRow.style.display = 'none';
+    }
+  }
+  const finalTotalEl = document.getElementById('orderFinalTotal');
+  if (finalTotalEl) finalTotalEl.textContent = fmt(subtotal - discount);
   renderSmartPaymentButtons(subtotal);
   updateChange();
 }
@@ -456,8 +487,10 @@ function removeItem(idx) {
 
 function updateChange() {
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);
+  const discount = getDiscount(subtotal);
+  const finalTotal = subtotal - discount;
   const received = parseFloat(document.getElementById('cashReceived').value) || 0;
-  const change = received - subtotal;
+  const change = received - finalTotal;
   document.getElementById('changeDisplay').textContent = fmt(Math.max(0, change));
   document.getElementById('changeDisplay').style.color = change < 0 ? 'var(--sys-red)' : 'var(--sys-green)';
 }
@@ -470,9 +503,11 @@ function setBillAmount(amount) {
 function confirmSale() {
   if (currentOrder.length === 0) { toast('Agrega al menos un producto', 'warning'); return; }
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);
+  const discount = getDiscount(subtotal);
+  const finalTotal = subtotal - discount;
   if (paymentMethod === 'efectivo') {
     const received = parseFloat(document.getElementById('cashReceived').value) || 0;
-    if (received < subtotal) { toast('El monto recibido es insuficiente', 'error'); return; }
+    if (received < finalTotal) { toast('El monto recibido es insuficiente', 'error'); return; }
   }
   const now = new Date();
   const timeStr = now.toTimeString().slice(0, 5);
@@ -481,9 +516,21 @@ function confirmSale() {
     sales.push({ id: uid(), date: today(), time: timeStr, productId: item.productId, productName: item.productName, emoji: item.emoji, qty: item.qty, price: item.price, total: item.total, payment: paymentMethod });
   });
   setData('sales', sales);
-  toast(`Venta registrada: ${fmt(subtotal)} ✅`);
+  if (discount > 0) {
+    const discType = document.getElementById('discountType')?.value || 'pct';
+    const discVal = parseFloat(document.getElementById('discountValue')?.value) || 0;
+    const transactions = getData('transactions', []);
+    transactions.push({ id: uid(), date: today(), type: 'gasto', desc: `Descuento cliente frecuente (${discType === 'pct' ? discVal + '%' : '$' + discVal})`, amount: discount });
+    setData('transactions', transactions);
+  }
+  const discountMsg = discount > 0 ? ` (descuento ${fmt(discount)})` : '';
+  toast(`Venta registrada: ${fmt(finalTotal)}${discountMsg} ✅`);
   currentOrder = [];
   document.getElementById('cashReceived').value = '';
+  const discountValueEl = document.getElementById('discountValue');
+  if (discountValueEl) discountValueEl.value = '';
+  const discountRow = document.getElementById('discountAmountRow');
+  if (discountRow) discountRow.style.display = 'none';
   renderOrderItems();
   renderSalesToday();
   updateLowStockBadge();
@@ -542,21 +589,159 @@ function initContador() {
 
   document.getElementById('txFilterDate').addEventListener('change', renderTransactionTable);
   document.getElementById('txFilterType').addEventListener('change', renderTransactionTable);
+
+  // Corte de Caja button
+  document.getElementById('corteCajaBtn')?.addEventListener('click', openCorteModal);
+  document.getElementById('verCortesBtn')?.addEventListener('click', openCortesHist);
+
+  // Show "Ver Historial de Cortes" only for Dueño (control role)
+  if (currentRole === 'control') {
+    document.getElementById('verCortesBtn').style.display = 'block';
+  }
+
   renderContador();
+}
+
+
+// ==========================================
+// CORTE DE CAJA
+// ==========================================
+function openCorteModal() {
+  document.getElementById('corteStep1').style.display = 'block';
+  document.getElementById('corteStep2').style.display = 'none';
+  document.getElementById('corteStep3').style.display = 'none';
+  document.getElementById('cortePassword').value = '';
+  document.getElementById('cortePasswordError').style.display = 'none';
+  document.getElementById('corteCajaModal').style.display = 'flex';
+}
+
+function closeCorteModal() {
+  document.getElementById('corteCajaModal').style.display = 'none';
+}
+
+function authorizeCorte() {
+  const pw = document.getElementById('cortePassword').value;
+  if (pw !== PASSWORDS.control) {
+    document.getElementById('cortePasswordError').style.display = 'block';
+    document.getElementById('cortePassword').value = '';
+    return;
+  }
+  document.getElementById('cortePasswordError').style.display = 'none';
+  document.getElementById('corteStep1').style.display = 'none';
+  document.getElementById('corteStep2').style.display = 'block';
+  document.getElementById('corteWho').value = '';
+  document.getElementById('corteWho').focus();
+}
+
+function showCorteSummary() {
+  const who = document.getElementById('corteWho').value.trim();
+  if (!who) { toast('Ingresa el nombre de quien realiza el corte', 'warning'); return; }
+
+  const todayStr = today();
+  const now = new Date();
+  const sales = getData('sales', []).filter(s => s.date === todayStr);
+  const transactions = getData('transactions', []).filter(t => t.date === todayStr);
+  const orders = getData('orders', []).filter(o => o.date === todayStr && o.status === 'entregado');
+
+  const totalSales = sales.reduce((a, s) => a + s.total, 0);
+  const ingresos = totalSales + transactions.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
+  const gastos = transactions.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
+  const netProfit = ingresos - gastos;
+
+  const allSalesAll = getData('sales', []);
+  const allTxAll = getData('transactions', []);
+  const allIncome = allSalesAll.reduce((a, s) => a + s.total, 0) + allTxAll.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
+  const allExpense = allTxAll.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
+  const cash = allIncome - allExpense;
+
+  const byProduct = {};
+  sales.forEach(s => { byProduct[s.productName] = (byProduct[s.productName] || 0) + s.qty; });
+  const topProductEntries = Object.entries(byProduct).sort((a, b) => b[1] - a[1]);
+  const topProduct = topProductEntries.length > 0 ? topProductEntries[0] : null;
+
+  const timeStr = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = now.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  document.getElementById('corteSummaryContent').innerHTML = `
+    <div class="corte-summary-header">
+      <div class="corte-who">👤 Realizado por: <strong>${esc(who)}</strong></div>
+      <div class="corte-datetime">📅 ${dateStr} — <strong>${timeStr}</strong></div>
+    </div>
+    <div class="corte-kpis">
+      <div class="corte-kpi green"><div class="ck-label">💵 Total Ventas</div><div class="ck-value">${fmt(ingresos)}</div></div>
+      <div class="corte-kpi red"><div class="ck-label">🧾 Total Gastos</div><div class="ck-value">${fmt(gastos)}</div></div>
+      <div class="corte-kpi ${netProfit >= 0 ? 'purple' : 'red'}"><div class="ck-label">📊 Utilidad Neta</div><div class="ck-value" style="color:${netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(netProfit)}</div></div>
+      <div class="corte-kpi blue"><div class="ck-label">🏦 Efectivo en Caja</div><div class="ck-value">${fmt(cash)}</div></div>
+      <div class="corte-kpi orange"><div class="ck-label">🥇 Más Vendido</div><div class="ck-value">${topProduct ? esc(topProduct[0].replace('Tortilla de ','')) : '—'}</div></div>
+      <div class="corte-kpi teal"><div class="ck-label">🚚 Entregas del Día</div><div class="ck-value">${orders.length}</div></div>
+    </div>
+  `;
+  // Store draft corte data for confirmation
+  document.getElementById('corteStep2').style.display = 'none';
+  document.getElementById('corteStep3').style.display = 'block';
+
+  // Save draft for confirmCorte to use
+  window._corteDraft = { who, date: todayStr, time: timeStr, ingresos, gastos, netProfit, cash, topProduct: topProduct ? topProduct[0] : '', ordersDelivered: orders.length };
+}
+
+function confirmCorte() {
+  const draft = window._corteDraft;
+  if (!draft) return;
+
+  const cortes = getData('cortes', []);
+  cortes.push({ id: uid(), ...draft });
+  setData('cortes', cortes);
+
+  // Reset today's counters by storing corte date
+  setData('corte_last_date', today());
+
+  closeCorteModal();
+  toast('✅ Corte de caja realizado y guardado', 'success');
+  renderContador();
+}
+
+function openCortesHist() {
+  if (currentRole !== 'control') { toast('Solo el Dueño puede ver este historial', 'error'); return; }
+  const cortes = getData('cortes', []);
+  const list = document.getElementById('cortesHistList');
+  if (cortes.length === 0) {
+    list.innerHTML = '<p class="empty-msg">Sin cortes registrados</p>';
+  } else {
+    list.innerHTML = [...cortes].reverse().map(c => `
+      <div class="corte-hist-item">
+        <div class="chi-header">
+          <span class="chi-date">📅 ${c.date} — <strong>${c.time}</strong></span>
+          <span class="chi-who">👤 ${esc(c.who)}</span>
+        </div>
+        <div class="chi-kpis">
+          <span>💵 Ventas: <strong>${fmt(c.ingresos)}</strong></span>
+          <span>🧾 Gastos: <strong>${fmt(c.gastos)}</strong></span>
+          <span>📊 Utilidad: <strong style="color:${c.netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(c.netProfit)}</strong></span>
+          <span>🏦 Caja: <strong>${fmt(c.cash)}</strong></span>
+          <span>🥇 Top: <strong>${c.topProduct ? esc(c.topProduct.replace('Tortilla de ','')) : '—'}</strong></span>
+          <span>🚚 Entregas: <strong>${c.ordersDelivered}</strong></span>
+        </div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('cortesHistModal').style.display = 'flex';
 }
 
 function renderContador() {
   const transactions = getData('transactions', []);
   const sales = getData('sales', []);
 
-  // Today's totals
+  // Today's totals — reset to 0 if corte was done today
   const todayStr = today();
+  const corteLastDate = getData('corte_last_date', '');
+  const corteDoneToday = corteLastDate === todayStr;
+
   const todayTx = transactions.filter(t => t.date === todayStr);
   const todaySales = sales.filter(s => s.date === todayStr);
 
-  const todayIncome = todaySales.reduce((a, s) => a + s.total, 0) +
-                      todayTx.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
-  const todayExpense = todayTx.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
+  const todayIncome = corteDoneToday ? 0 : (todaySales.reduce((a, s) => a + s.total, 0) +
+                      todayTx.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0));
+  const todayExpense = corteDoneToday ? 0 : todayTx.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
 
   // All-time caja
   const allIncome = sales.reduce((a, s) => a + s.total, 0) +
@@ -565,6 +750,13 @@ function renderContador() {
 
   document.getElementById('cntTotalIncome').textContent = fmt(todayIncome);
   document.getElementById('cntTotalExpense').textContent = fmt(todayExpense);
+  if (corteDoneToday) {
+    document.getElementById('cntTotalIncome').title = 'Corte de caja realizado hoy';
+    document.getElementById('cntTotalIncome').style.opacity = '0.5';
+  } else {
+    document.getElementById('cntTotalIncome').title = '';
+    document.getElementById('cntTotalIncome').style.opacity = '';
+  }
   document.getElementById('cntCash').textContent = fmt(allIncome - allExpense);
   const profit = todayIncome - todayExpense;
   document.getElementById('cntProfit').textContent = fmt(profit);
@@ -577,7 +769,9 @@ function renderContador() {
   const todaySalesDocenas = todaySales.reduce((a, s) => a + s.qty, 0);
   document.getElementById('cntBreakeven').textContent = be + ' docenas';
   const diff = todaySalesDocenas - parseFloat(be);
-  if (parseFloat(be) === 0) {
+  if (corteDoneToday) {
+    document.getElementById('cntBreakevenHint').textContent = '✅ Corte de caja realizado hoy';
+  } else if (parseFloat(be) === 0) {
     document.getElementById('cntBreakevenHint').textContent = 'Sin gastos registrados hoy';
   } else if (diff >= 0) {
     document.getElementById('cntBreakevenHint').textContent = `✅ Superado por ${diff.toFixed(1)} docenas (${fmt(diff * avgPrice)})`;
@@ -754,8 +948,16 @@ function initCRM() {
       tab.classList.add('active');
       document.getElementById('crm-' + tab.dataset.crm).classList.add('active');
       if (tab.dataset.crm === 'ruta') initMap();
+      if (tab.dataset.crm === 'historial') renderHistorialList();
     });
   });
+
+  // Historial search listeners
+  document.getElementById('histClientSearch')?.addEventListener('input', renderHistorialList);
+  document.getElementById('histDateFilter')?.addEventListener('change', renderHistorialList);
+
+  // Check and create recurring orders for today
+  checkRecurringOrders();
 
   // Client form
   document.getElementById('clientForm').addEventListener('submit', function(e) {
@@ -906,6 +1108,9 @@ function initCRM() {
 function renderCRM() {
   renderClientList();
   renderOrderList();
+  // Update historial if that tab is active
+  const histTab = document.querySelector('.crm-tab[data-crm="historial"]');
+  if (histTab && histTab.classList.contains('active')) renderHistorialList();
 }
 
 function renderClientList() {
@@ -918,27 +1123,52 @@ function renderClientList() {
     container.innerHTML = '<p class="empty-msg">Sin clientes registrados</p>';
     return;
   }
+  const DAY_NAMES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   container.innerHTML = filtered.map(c => {
     const clientOrders = orders.filter(o => o.clientId === c.id);
     const totalPurchases = clientOrders.reduce((a, o) => a + o.total, 0);
+    const recurring = c.recurringOrders || [];
+    const recurringHtml = recurring.map((r, ri) => {
+      const prod = PRODUCTS.find(p => p.id === r.productId);
+      return `<div class="recurring-item">`
+        + `${prod ? prod.emoji : ''} ${prod ? prod.name.replace('Tortilla de ', '') : r.productId} × ${r.qty} — ${DAY_NAMES[r.day]}`
+        + ` <button type="button" class="btn-rec-del" onclick="deleteRecurring('${c.id}',${ri})">✕</button></div>`;
+    }).join('');
+    const productOptions = PRODUCTS.map(p =>
+      `<option value="${p.id}">${p.emoji} ${p.name.replace('Tortilla de ', '')}</option>`
+    ).join('');
+    const dayOptions = DAY_NAMES.map((d, i) =>
+      `<option value="${i}">${d}</option>`
+    ).join('');
     return `<div class="client-card">
       <div class="client-card-header">
         <div>
-          <div class="client-name">👤 ${c.name}</div>
-          ${c.phone ? `<div class="client-detail">📱 ${c.phone}</div>` : ''}
-          ${c.address ? `<div class="client-detail">📍 ${c.address}</div>` : ''}
+          <div class="client-name">👤 ${esc(c.name)}</div>
+          ${c.phone ? `<div class="client-detail">📱 ${esc(c.phone)}</div>` : ''}
+          ${c.address ? `<div class="client-detail">📍 ${esc(c.address)}</div>` : ''}
           <div class="client-detail">🛒 ${clientOrders.length} pedido(s) — Total: ${fmt(totalPurchases)}</div>
-          ${c.notes ? `<div class="client-notes">"${c.notes}"</div>` : ''}
+          ${c.notes ? `<div class="client-notes">${esc(c.notes)}</div>` : ''}
         </div>
         <div class="client-card-actions">
           ${c.phone ? `<a href="https://wa.me/52${c.phone.replace(/\D/g,'')}" target="_blank" class="btn-secondary-sys">💬</a>` : ''}
           <button class="btn-danger-sys" onclick="deleteClient('${c.id}')">🗑️</button>
         </div>
       </div>
+      <details class="recurring-section">
+        <summary class="recurring-summary">🔄 Pedido Recurrente</summary>
+        <div class="recurring-body">
+          ${recurringHtml || '<p class="empty-msg small">Sin pedidos recurrentes</p>'}
+          <form class="recurring-form" onsubmit="saveRecurring('${c.id}', event)">
+            <select class="rec-product" name="recProduct">${productOptions}</select>
+            <input class="rec-qty" type="number" name="recQty" placeholder="Cant." min="1" step="1" value="1" required />
+            <select class="rec-day" name="recDay">${dayOptions}</select>
+            <button type="submit" class="btn-secondary-sys rec-add-btn">➕ Agregar</button>
+          </form>
+        </div>
+      </details>
     </div>`;
   }).join('');
 }
-
 function deleteClient(id) {
   if (!confirm('¿Eliminar este cliente?')) return;
   const clients = getData('clients', []).filter(c => c.id !== id);
@@ -947,8 +1177,81 @@ function deleteClient(id) {
   renderCRM();
 }
 
+function saveRecurring(clientId, event) {
+  event.preventDefault();
+  const form = event.target;
+  const productId = form.recProduct.value;
+  const qty = parseInt(form.recQty.value) || 1;
+  const day = parseInt(form.recDay.value);
+  const clients = getData('clients', []);
+  const idx = clients.findIndex(c => c.id === clientId);
+  if (idx < 0) return;
+  if (!clients[idx].recurringOrders) clients[idx].recurringOrders = [];
+  clients[idx].recurringOrders.push({ productId, qty, day });
+  setData('clients', clients);
+  toast('Pedido recurrente guardado ✅');
+  renderClientList();
+}
+
+function deleteRecurring(clientId, recurringIdx) {
+  const clients = getData('clients', []);
+  const idx = clients.findIndex(c => c.id === clientId);
+  if (idx < 0) return;
+  clients[idx].recurringOrders = (clients[idx].recurringOrders || []).filter((_, i) => i !== recurringIdx);
+  setData('clients', clients);
+  toast('Pedido recurrente eliminado', 'warning');
+  renderClientList();
+}
+
+function checkRecurringOrders() {
+  const todayStr = today();
+  const todayDay = new Date(todayStr + 'T12:00:00').getDay();
+  const clients = getData('clients', []);
+  const orders = getData('orders', []);
+  let created = 0;
+  clients.forEach(c => {
+    const recurring = c.recurringOrders || [];
+    recurring.forEach(r => {
+      if (parseInt(r.day) !== todayDay) return;
+      // Check if already exists for today
+      const alreadyExists = orders.some(o =>
+        o.clientId === c.id && o.date === todayStr && o.recurring === true &&
+        (o.items || []).some(i => i.productId === r.productId)
+      );
+      if (alreadyExists) return;
+      const prod = PRODUCTS.find(p => p.id === r.productId);
+      if (!prod) return;
+      const item = { productId: r.productId, productName: prod.name, qty: r.qty, price: prod.price, total: r.qty * prod.price };
+      orders.push({
+        id: uid(), clientId: c.id, clientName: c.name, clientAddress: c.address || '',
+        items: [item], total: item.total, date: todayStr, status: 'pendiente',
+        notes: 'Pedido recurrente automático', recurring: true,
+      });
+      created++;
+    });
+  });
+  if (created > 0) {
+    setData('orders', orders);
+    toast(`🔄 ${created} pedido(s) recurrente(s) creado(s) automáticamente`, 'success');
+    updateCRMBadge(created);
+  }
+}
+
+function updateCRMBadge(count) {
+  const badge = document.getElementById('crmBadge');
+  if (!badge) return;
+  const current = parseInt(badge.textContent) || 0;
+  const total = current + count;
+  if (total > 0) {
+    badge.textContent = total;
+    badge.style.display = 'inline-flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
 function renderOrderList() {
-  const orders = getData('orders', []).filter(o => o.status !== 'entregado');
+  const orders = getData('orders', []).filter(o => o.status === 'pendiente');
   const container = document.getElementById('orderList');
   if (orders.length === 0) {
     container.innerHTML = '<p class="empty-msg">Sin pedidos activos</p>';
@@ -964,134 +1267,106 @@ function renderOrderList() {
       return `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ','')} — ${i.qty} ${pluralUnit(unitLabel, i.qty)} — ${fmt(i.total)}</div>`;
     }).join('');
     return `<div class="order-card-new">
-      <div class="order-card-top">
-        <button class="order-delete-icon" onclick="deleteOrder('${o.id}')" title="Eliminar pedido">🗑️</button>
-      </div>
       <div class="order-card-body">
-        <div class="order-client-name">👤 ${o.clientName}</div>
-        ${o.clientAddress ? `<div class="order-detail">📍 ${o.clientAddress}</div>` : ''}
+        <div class="order-client-name">👤 ${esc(o.clientName)}</div>
+        ${o.clientAddress ? `<div class="order-detail">📍 ${esc(o.clientAddress)}</div>` : ''}
         <div class="order-detail">📅 Entrega: ${o.date}</div>
         <div class="order-products-list">${productsHtml}</div>
         <div class="order-total-line">Total: ${fmt(orderTotal)}</div>
-        ${o.notes ? `<div class="order-detail order-notes-text">"${o.notes}"</div>` : ''}
+        ${o.notes ? `<div class="order-detail order-notes-text">${esc(o.notes)}</div>` : ''}
       </div>
-      ${o.status === 'pendiente'
-        ? `<button class="btn-entregado" onclick="markDelivered('${o.id}')">✅ Entregado</button>`
-        : `<div class="order-badge-done-full">✅ Entregado</div>`
-      }
-    </div>`;
-  }).join('');
-}
-
-// ---- POS-style product grid for orders ----
-let _orderCart = {};
-
-function renderOrderProductGrid() {
-  const grid = document.getElementById('orderProductGrid');
-  if (!grid) return;
-  grid.innerHTML = PRODUCTS.map(p => {
-    const qty = _orderCart[p.id] || 0;
-    return `<button type="button" class="order-grid-btn ${qty > 0 ? 'active' : ''}" data-product="${p.id}">
-      <span class="og-emoji">${p.emoji}</span>
-      <span class="og-name">${p.name.replace('Tortilla de ', '')}</span>
-      <span class="og-price">${fmt(p.price)}/${p.unit}</span>
-      ${qty > 0 ? `<span class="og-badge">${qty}</span>` : ''}
-    </button>`;
-  }).join('');
-  grid.querySelectorAll('.order-grid-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const pid = this.dataset.product;
-      const cart = getOrderCart();
-      cart[pid] = (cart[pid] || 0) + 1;
-      renderOrderProductGrid();
-      renderOrderCart();
-    });
-  });
-}
-
-function getOrderCart() {
-  return _orderCart;
-}
-
-function renderOrderCart() {
-  const cart = getOrderCart();
-  const summary = document.getElementById('orderCartSummary');
-  const itemsEl = document.getElementById('orderCartItems');
-  const entries = Object.entries(cart).filter(([, q]) => q > 0);
-  if (entries.length === 0) {
-    summary.style.display = 'none';
-    document.getElementById('orderRunningTotal').textContent = '$0.00';
-    return;
-  }
-  summary.style.display = 'block';
-  let total = 0;
-  itemsEl.innerHTML = entries.map(([pid, qty]) => {
-    const p = PRODUCTS.find(x => x.id === pid);
-    const lineTotal = qty * (p?.price || 0);
-    total += lineTotal;
-    return `<div class="cart-item">
-      <span class="ci-info">${p?.emoji || ''} ${(p?.name || '').replace('Tortilla de ', '')} × ${qty}</span>
-      <span class="ci-total">${fmt(lineTotal)}</span>
-      <div class="ci-controls">
-        <button type="button" class="ci-minus" data-product="${pid}">−</button>
-        <button type="button" class="ci-plus" data-product="${pid}">+</button>
-        <button type="button" class="ci-remove" data-product="${pid}">✕</button>
+      <div class="order-card-actions-row">
+        <button class="btn-entregado" onclick="markDelivered('${o.id}')">✅ Entregado</button>
+        <button class="btn-cancelar" onclick="openCancelModal('${o.id}')">❌ Cancelar</button>
       </div>
     </div>`;
   }).join('');
-  document.getElementById('orderRunningTotal').textContent = fmt(total);
-
-  // Wire up cart buttons
-  itemsEl.querySelectorAll('.ci-minus').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const cart = getOrderCart();
-      cart[this.dataset.product] = Math.max(0, (cart[this.dataset.product] || 0) - 1);
-      if (cart[this.dataset.product] === 0) delete cart[this.dataset.product];
-      renderOrderProductGrid();
-      renderOrderCart();
-    });
-  });
-  itemsEl.querySelectorAll('.ci-plus').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const cart = getOrderCart();
-      cart[this.dataset.product] = (cart[this.dataset.product] || 0) + 1;
-      renderOrderProductGrid();
-      renderOrderCart();
-    });
-  });
-  itemsEl.querySelectorAll('.ci-remove').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const cart = getOrderCart();
-      delete cart[this.dataset.product];
-      renderOrderProductGrid();
-      renderOrderCart();
-    });
-  });
 }
 
-function updateOrderRunningTotal() {
-  // Keep backward-compat: recalculate from cart
-  renderOrderCart();
+let _cancelOrderId = null;
+
+function openCancelModal(id) {
+  _cancelOrderId = id;
+  document.getElementById('cancelReason').value = '';
+  document.getElementById('cancelOrderModal').style.display = 'flex';
 }
 
-function markDelivered(id) {
+function closeCancelModal() {
+  _cancelOrderId = null;
+  document.getElementById('cancelOrderModal').style.display = 'none';
+}
+
+function confirmCancelOrder() {
+  if (!_cancelOrderId) return;
+  const reason = document.getElementById('cancelReason').value.trim();
   const orders = getData('orders', []);
-  const idx = orders.findIndex(o => o.id === id);
-  if (idx >= 0) { orders[idx].status = 'entregado'; setData('orders', orders); }
-  toast('Entrega marcada como completada ✅');
+  const idx = orders.findIndex(o => o.id === _cancelOrderId);
+  if (idx >= 0) {
+    orders[idx].status = 'cancelado';
+    orders[idx].cancelReason = reason || '';
+    orders[idx].cancelDate = new Date().toISOString();
+    setData('orders', orders);
+  }
+  closeCancelModal();
+  toast('Pedido cancelado', 'warning');
   renderCRM();
-  if (deliveryMap) loadRoute();
 }
 
 function deleteOrder(id) {
-  if (!confirm('¿Eliminar este pedido?')) return;
+  // Keep for backward compatibility
   const orders = getData('orders', []).filter(o => o.id !== id);
   setData('orders', orders);
-  toast('Pedido eliminado', 'warning');
   renderCRM();
 }
 
-// Home base: Zitácuaro centro
+function renderHistorialList() {
+  const orders = getData('orders', []).filter(o => o.status === 'entregado' || o.status === 'cancelado');
+  const container = document.getElementById('historialList');
+  if (!container) return;
+
+  const q = (document.getElementById('histClientSearch')?.value || '').toLowerCase();
+  const dateFilter = document.getElementById('histDateFilter')?.value || '';
+
+  let filtered = [...orders];
+  if (q) filtered = filtered.filter(o => o.clientName.toLowerCase().includes(q));
+  if (dateFilter) filtered = filtered.filter(o => o.date === dateFilter);
+  filtered = filtered.reverse();
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p class="empty-msg">Sin entregas en el historial</p>';
+    return;
+  }
+  container.innerHTML = filtered.map(o => {
+    const items = o.items || [{ productName: o.productName, qty: o.qty, total: o.total }];
+    const orderTotal = o.total || items.reduce((a, i) => a + (i.total || 0), 0);
+    const isCancelled = o.status === 'cancelado';
+    const productsHtml = items.map(i => {
+      const prod = PRODUCTS.find(p => p.id === i.productId);
+      const unitLabel = prod ? prod.unit : 'doc';
+      return `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ', '')} — ${i.qty} ${pluralUnit(unitLabel, i.qty)} — ${fmt(i.total)}</div>`;
+    }).join('');
+    const cancelInfo = isCancelled && o.cancelReason ? `<div class="order-detail hist-cancel-reason">📌 Motivo: ${esc(o.cancelReason)}</div>` : '';
+    const statusBadge = isCancelled
+      ? '<span class="hist-badge cancelled">❌ Cancelado</span>'
+      : '<span class="hist-badge delivered">✅ Entregado</span>';
+    return `<div class="order-card-new ${isCancelled ? 'order-card-cancelled' : ''}">
+      <div class="order-card-body">
+        <div class="order-card-hist-header">
+          <div class="order-client-name">👤 ${esc(o.clientName)}</div>
+          ${statusBadge}
+        </div>
+        ${o.clientAddress ? `<div class="order-detail">📍 ${esc(o.clientAddress)}</div>` : ''}
+        <div class="order-detail">📅 ${o.date}</div>
+        <div class="order-products-list">${productsHtml}</div>
+        <div class="order-total-line">Total: ${fmt(orderTotal)}</div>
+        ${cancelInfo}
+        ${o.notes ? `<div class="order-detail order-notes-text">"${esc(o.notes)}"</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+
 const HOME_BASE = { lat: 19.4326, lng: -100.3572 };
 
 function initMap() {
