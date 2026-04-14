@@ -1196,9 +1196,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
    REPORTES
    ========================================== */
 .report-controls { background: #fff; border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-sm); margin-bottom: 1.5rem; }
-.report-week-selector { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.report-week-selector label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sys-text-muted); }
-.report-week-selector input {
+.report-date-range { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.report-date-range label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sys-text-muted); }
+.report-date-range input {
   padding: 0.55rem 0.9rem;
   border: 1.5px solid var(--sys-border);
   border-radius: var(--radius);

@@ -491,11 +491,13 @@
              MÓDULO: REPORTES
              ============================================================ -->
         <section class="module" id="mod-reportes">
-          <h2 class="module-title">Reportes Semanales</h2>
+          <h2 class="module-title">Reportes</h2>
           <div class="report-controls">
-            <div class="report-week-selector">
-              <label>Seleccionar semana:</label>
-              <input type="week" id="reportWeek" />
+            <div class="report-date-range">
+              <label>Fecha inicio:</label>
+              <input type="date" id="reportStartDate" />
+              <label>Fecha fin:</label>
+              <input type="date" id="reportEndDate" />
               <button id="generateReportBtn" class="btn-primary-sys">📈 Generar Reporte</button>
             </div>
           </div>
@@ -530,8 +532,8 @@
           </div>
           <div id="reportPlaceholder" class="report-placeholder">
             <div class="report-ph-icon">📈</div>
-            <p>Selecciona una semana y haz clic en "Generar Reporte" para ver el resumen.</p>
-            <p class="muted">Los reportes semanales se generan automáticamente cada lunes.</p>
+            <p>Selecciona un rango de fechas y haz clic en "Generar Reporte" para ver el resumen.</p>
+            <p class="muted">Puedes reportar desde un solo día hasta varios meses.</p>
           </div>
         </section>
 
