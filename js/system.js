@@ -404,8 +404,7 @@ function renderSmartPaymentButtons(subtotal) {
   const suggestions = bills.filter(b => b > subtotal).slice(0, 3);
   let html = `<button type="button" class="bill-btn bill-btn-exact" onclick="setBillAmount(${subtotal})">Exacto ${fmt(subtotal)}</button>`;
   suggestions.forEach(b => {
-    const label = b >= 1000 ? `$${(b / 1000).toLocaleString('es-MX')},000` : `$${b}`;
-    html += `<button type="button" class="bill-btn" onclick="setBillAmount(${b})">${label}</button>`;
+    html += `<button type="button" class="bill-btn" onclick="setBillAmount(${b})">$${b.toLocaleString('es-MX')}</button>`;
   });
   container.innerHTML = html;
   container.style.display = 'grid';
