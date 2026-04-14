@@ -438,6 +438,11 @@ function updateChange() {
   document.getElementById('changeDisplay').style.color = change < 0 ? 'var(--sys-red)' : 'var(--sys-green)';
 }
 
+function setBillAmount(amount) {
+  document.getElementById('cashReceived').value = amount;
+  updateChange();
+}
+
 function confirmSale() {
   if (currentOrder.length === 0) { toast('Agrega al menos un producto', 'warning'); return; }
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);
@@ -1271,50 +1276,24 @@ function openInGoogleMaps() {
 // MÓDULO: REPORTES
 // ==========================================
 function initReportes() {
-  // Set default week to current week
-  const now = new Date();
-  const year = now.getFullYear();
-  const week = getWeekNumber(now);
-  document.getElementById('reportWeek').value = `${year}-W${String(week).padStart(2,'0')}`;
+  // Default range: last 7 days (6 days ago through today)
+  const today = new Date();
+  const rangeStart = new Date(today);
+  rangeStart.setDate(today.getDate() - 6);
+  document.getElementById('reportStartDate').value = rangeStart.toISOString().split('T')[0];
+  document.getElementById('reportEndDate').value = today.toISOString().split('T')[0];
 
   document.getElementById('generateReportBtn').addEventListener('click', generateReport);
-
-  // Auto-generate on Mondays
-  if (now.getDay() === 1) {
-    setTimeout(generateReport, 500);
-  }
-}
-
-function getWeekNumber(d) {
-  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-}
-
-function getWeekDates(weekStr) {
-  // weekStr = "2024-W15"
-  const [yearStr, weekPart] = weekStr.split('-W');
-  const year = parseInt(yearStr);
-  const week = parseInt(weekPart);
-  const jan4 = new Date(year, 0, 4);
-  const dayOfWeek = jan4.getDay() || 7;
-  const firstMonday = new Date(jan4);
-  firstMonday.setDate(jan4.getDate() - dayOfWeek + 1);
-  const startDate = new Date(firstMonday);
-  startDate.setDate(firstMonday.getDate() + (week - 1) * 7);
-  const endDate = new Date(startDate);
-  endDate.setDate(startDate.getDate() + 6);
-  return { startDate, endDate };
 }
 
 function generateReport() {
-  const weekStr = document.getElementById('reportWeek').value;
-  if (!weekStr) { toast('Selecciona una semana', 'warning'); return; }
+  const startStr = document.getElementById('reportStartDate').value;
+  const endStr = document.getElementById('reportEndDate').value;
+  if (!startStr || !endStr) { toast('Selecciona fecha inicio y fecha fin', 'warning'); return; }
+  if (startStr > endStr) { toast('La fecha inicio debe ser anterior a la fecha fin', 'warning'); return; }
 
-  const { startDate, endDate } = getWeekDates(weekStr);
-  const startStr = startDate.toISOString().split('T')[0];
-  const endStr = endDate.toISOString().split('T')[0];
+  const startDate = new Date(startStr + 'T12:00:00');
+  const endDate = new Date(endStr + 'T12:00:00');
 
   const sales = getData('sales', []).filter(s => s.date >= startStr && s.date <= endStr);
   const transactions = getData('transactions', []).filter(t => t.date >= startStr && t.date <= endStr);
@@ -1329,8 +1308,11 @@ function generateReport() {
   document.getElementById('reportContent').style.display = 'block';
 
   // Header
+  const fmtDate = d => d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
   document.getElementById('reportPeriod').textContent =
-    `Semana ${weekStr.split('-W')[1]} — ${startDate.toLocaleDateString('es-MX', { month: 'long', day: 'numeric' })} al ${endDate.toLocaleDateString('es-MX', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+    startStr === endStr
+      ? fmtDate(startDate)
+      : `${fmtDate(startDate)} — ${fmtDate(endDate)}`;
   document.getElementById('reportGenerated').textContent = new Date().toLocaleString('es-MX');
 
   // KPIs
@@ -1355,12 +1337,12 @@ function generateReport() {
     </div>`
   ).join('');
 
-  // Daily income vs expense
+  // Daily income vs expense — iterate every day in the selected range
   const days = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + i);
-    days.push(d.toISOString().split('T')[0]);
+  const cur = new Date(startDate);
+  while (cur <= endDate) {
+    days.push(cur.toISOString().split('T')[0]);
+    cur.setDate(cur.getDate() + 1);
   }
   const dayLabels = { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb', 0: 'Dom' };
   const maxDay = Math.max(...days.map(d => {
@@ -1373,10 +1355,13 @@ function generateReport() {
     const dt = new Date(d + 'T12:00:00');
     const inc = sales.filter(s=>s.date===d).reduce((a,s)=>a+s.total,0) + transactions.filter(t=>t.date===d&&t.type==='ingreso').reduce((a,t)=>a+t.amount,0);
     const exp = transactions.filter(t=>t.date===d&&t.type==='gasto').reduce((a,t)=>a+t.amount,0);
+    const label = days.length === 1
+      ? fmtDate(dt)
+      : (days.length <= 14 ? `${dayLabels[dt.getDay()]} ${dt.getDate()}` : d);
     return `<div class="chart-bar-item">
-      <div class="chart-bar-label"><span>${dayLabels[dt.getDay()]}</span><span style="color:var(--sys-green)">${fmt(inc)}</span></div>
+      <div class="chart-bar-label"><span>${label}</span><span style="color:var(--sys-green)">${fmt(inc)}</span></div>
       <div class="chart-bar-track"><div class="chart-bar-fill income" style="width:${(inc/maxDay*100).toFixed(1)}%"></div></div>
-      <div class="chart-bar-track" style="margin-top:2px;"><div class="chart-bar-fill expense" style="width:${(exp/maxDay*100).toFixed(1)}%"></div></div>
+      <div class="chart-bar-track" style="margin-top:2px;"><div class="chart-bar-fill expense" style="width:${(exp/maxDay*100).toFixed(1)}%;background:var(--sys-red)"></div></div>
     </div>`;
   }).join('');
 
@@ -1402,10 +1387,10 @@ function generateReport() {
   document.getElementById('reportConclusion').innerHTML = `
     <h4>📋 Resumen Ejecutivo</h4>
     <p>
-      Durante esta semana se generaron <strong>${fmt(totalSales)}</strong> en ventas con gastos de <strong>${fmt(totalExpense)}</strong>,
+      Durante este período se generaron <strong>${fmt(totalSales)}</strong> en ventas con gastos de <strong>${fmt(totalExpense)}</strong>,
       resultando en una <strong style="color:${netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">utilidad neta de ${fmt(netProfit)}</strong>.
       ${bestProduct && bestProduct.qty > 0 ? `La variedad más vendida fue <strong>${bestProduct.emoji} ${bestProduct.name}</strong> con ${bestProduct.qty.toFixed(1)} docenas vendidas.` : ''}
-      ${netProfit < 0 ? '⚠️ Esta semana los gastos superaron los ingresos. Se recomienda revisar los costos operativos.' : '✅ Semana rentable. ¡Buen trabajo!'}
+      ${netProfit < 0 ? '⚠️ Los gastos superaron los ingresos en este período. Se recomienda revisar los costos operativos.' : '✅ Período rentable. ¡Buen trabajo!'}
     </p>
   `;
 

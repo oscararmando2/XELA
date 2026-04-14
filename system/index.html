@@ -178,6 +178,12 @@
                   </div>
                   <div id="cashPaySection">
                     <label>💰 Monto recibido: $</label>
+                    <div class="bill-btns">
+                      <button type="button" class="bill-btn" onclick="setBillAmount(50)">$50</button>
+                      <button type="button" class="bill-btn" onclick="setBillAmount(100)">$100</button>
+                      <button type="button" class="bill-btn" onclick="setBillAmount(200)">$200</button>
+                      <button type="button" class="bill-btn" onclick="setBillAmount(500)">$500</button>
+                    </div>
                     <input type="number" id="cashReceived" placeholder="0.00" min="0" step="0.5" />
                     <div class="change-display">
                       💲 Cambio: <strong id="changeDisplay">$0.00</strong>
@@ -491,11 +497,13 @@
              MÓDULO: REPORTES
              ============================================================ -->
         <section class="module" id="mod-reportes">
-          <h2 class="module-title">Reportes Semanales</h2>
+          <h2 class="module-title">Reportes</h2>
           <div class="report-controls">
-            <div class="report-week-selector">
-              <label>Seleccionar semana:</label>
-              <input type="week" id="reportWeek" />
+            <div class="report-date-range">
+              <label>Fecha inicio:</label>
+              <input type="date" id="reportStartDate" />
+              <label>Fecha fin:</label>
+              <input type="date" id="reportEndDate" />
               <button id="generateReportBtn" class="btn-primary-sys">📈 Generar Reporte</button>
             </div>
           </div>
@@ -530,8 +538,8 @@
           </div>
           <div id="reportPlaceholder" class="report-placeholder">
             <div class="report-ph-icon">📈</div>
-            <p>Selecciona una semana y haz clic en "Generar Reporte" para ver el resumen.</p>
-            <p class="muted">Los reportes semanales se generan automáticamente cada lunes.</p>
+            <p>Selecciona un rango de fechas y haz clic en "Generar Reporte" para ver el resumen.</p>
+            <p class="muted">Puedes reportar desde un solo día hasta varios meses.</p>
           </div>
         </section>
 

@@ -558,6 +558,20 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   transition: all var(--transition);
 }
 .pay-btn.active { border-color: var(--sys-primary); background: #F0FDF4; color: var(--sys-primary); }
+.bill-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin: 0.5rem 0; }
+.bill-btn {
+  padding: 0.75rem 0.5rem;
+  border: 2px solid var(--sys-primary);
+  background: #fff;
+  border-radius: var(--radius);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--sys-primary);
+  cursor: pointer;
+  transition: all var(--transition);
+  touch-action: manipulation;
+}
+.bill-btn:active { background: var(--sys-primary); color: #fff; transform: scale(0.96); }
 #cashPaySection label { font-size: 0.95rem; font-weight: 700; color: var(--sys-text); text-transform: uppercase; letter-spacing: 0.5px; }
 #cashReceived {
   width: 100%;
@@ -1196,9 +1210,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
    REPORTES
    ========================================== */
 .report-controls { background: #fff; border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-sm); margin-bottom: 1.5rem; }
-.report-week-selector { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.report-week-selector label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sys-text-muted); }
-.report-week-selector input {
+.report-date-range { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.report-date-range label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sys-text-muted); }
+.report-date-range input {
   padding: 0.55rem 0.9rem;
   border: 1.5px solid var(--sys-border);
   border-radius: var(--radius);
