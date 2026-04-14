@@ -590,6 +590,24 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Firebase SDK (compat) — must load before system.js -->
+  <!-- Note: Firebase web API keys are public by design; access is controlled by Firestore security rules -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script>
+    firebase.initializeApp({
+      apiKey: "AIzaSyA5orV2cj41j6YZHi7Tn-fX62rM3zOLUfI",
+      authDomain: "xela-8a91d.firebaseapp.com",
+      projectId: "xela-8a91d",
+      storageBucket: "xela-8a91d.firebasestorage.app",
+      messagingSenderId: "1024661076424",
+      appId: "1:1024661076424:web:f889b065e1afb1c2cfe8fd",
+      measurementId: "G-DF38FQW5JX"
+    });
+    var db = firebase.firestore();
+  </script>
+
   <script src="../js/system.js"></script>
 
   <!-- ===================== MODALS ===================== -->
