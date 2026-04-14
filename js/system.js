@@ -392,12 +392,32 @@ function addToOrder(productId) {
   renderOrderItems();
 }
 
+function renderSmartPaymentButtons(subtotal) {
+  const container = document.getElementById('smartPayBtns');
+  if (!container) return;
+  if (!subtotal || subtotal <= 0) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+  const bills = [20, 50, 100, 200, 500, 1000];
+  const suggestions = bills.filter(b => b > subtotal).slice(0, 3);
+  let html = `<button type="button" class="bill-btn bill-btn-exact" onclick="setBillAmount(${subtotal})">Exacto ${fmt(subtotal)}</button>`;
+  suggestions.forEach(b => {
+    const label = b >= 1000 ? `$${(b / 1000).toLocaleString('es-MX')},000` : `$${b}`;
+    html += `<button type="button" class="bill-btn" onclick="setBillAmount(${b})">${label}</button>`;
+  });
+  container.innerHTML = html;
+  container.style.display = 'grid';
+}
+
 function renderOrderItems() {
   const container = document.getElementById('orderItems');
   if (currentOrder.length === 0) {
     container.innerHTML = '<p class="empty-msg">Agrega productos para comenzar</p>';
     document.getElementById('orderSubtotal').textContent = '$0.00';
     document.getElementById('changeDisplay').textContent = '$0.00';
+    renderSmartPaymentButtons(0);
     return;
   }
   container.innerHTML = currentOrder.map((item, idx) => {
@@ -416,6 +436,7 @@ function renderOrderItems() {
   }).join('');
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);
   document.getElementById('orderSubtotal').textContent = fmt(subtotal);
+  renderSmartPaymentButtons(subtotal);
   updateChange();
 }
 

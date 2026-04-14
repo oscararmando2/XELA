@@ -558,7 +558,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   transition: all var(--transition);
 }
 .pay-btn.active { border-color: var(--sys-primary); background: #F0FDF4; color: var(--sys-primary); }
-.bill-btns { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.35rem; margin: 0.5rem 0; }
+.bill-btns { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.35rem; margin: 0.5rem 0; }
 .bill-btn {
   padding: 0.6rem 0.25rem;
   border: 2px solid var(--sys-primary);
@@ -572,6 +572,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   touch-action: manipulation;
 }
 .bill-btn:active { background: var(--sys-primary); color: #fff; transform: scale(0.96); }
+.bill-btn-exact { background: var(--sys-primary); color: #fff; }
+.bill-btn-exact:active { background: var(--sys-green); border-color: var(--sys-green); }
 #cashPaySection label { font-size: 0.95rem; font-weight: 700; color: var(--sys-text); text-transform: uppercase; letter-spacing: 0.5px; }
 #cashReceived {
   width: 100%;
