@@ -537,6 +537,7 @@
             <div class="report-header-card">
               <div class="report-period" id="reportPeriod"></div>
               <div class="report-generated">Generado: <span id="reportGenerated"></span></div>
+              <button id="downloadPdfBtn" class="btn-secondary-sys" style="margin-top:10px;">📄 Descargar PDF</button>
             </div>
             <div class="report-kpis" id="reportKpis"></div>
             <div class="report-charts">
@@ -574,6 +575,8 @@
   </div><!-- /dashboard -->
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script src="../js/system.js"></script>
 
   <!-- ===================== MODALS ===================== -->
