@@ -6,6 +6,9 @@
 const PASSWORDS = { control: 'xela2024', equipo: 'xelaempleado' };
 let currentRole = null;
 
+// ---- Último reporte generado (para PDF) ----
+let lastReportData = null;
+
 // ---- Productos del catálogo ----
 const PRODUCTS = [
   { id: 'maiz',       name: 'Tortilla de Maíz',         price: 15, unit: 'docena', emoji: '🌽' },
@@ -1693,5 +1696,166 @@ function generateReport() {
     </p>
   `;
 
+  // Store report data for PDF export
+  lastReportData = { startStr, endStr, totalSales, totalExpense, netProfit, bestProduct, byProduct, days, allTx, fmtDate, startDate, endDate };
+  document.getElementById('downloadPdfBtn').onclick = downloadReportPDF;
+
   toast('Reporte generado ✅');
+}
+
+function downloadReportPDF() {
+  if (!lastReportData) return;
+  const { startStr, endStr, totalSales, totalExpense, netProfit, bestProduct, byProduct, days, allTx, fmtDate, startDate, endDate } = lastReportData;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  let y = margin;
+
+  // --- Logo ---
+  const logoImg = new Image();
+  logoImg.src = '../logoxela.png';
+
+  const buildPdf = (logoDataUrl) => {
+    // Logo
+    if (logoDataUrl) {
+      const logoW = 30;
+      const logoH = 30;
+      doc.addImage(logoDataUrl, 'PNG', (pageW - logoW) / 2, y, logoW, logoH);
+      y += logoH + 4;
+    }
+
+    // Title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(45, 106, 79); // #2d6a4f
+    doc.text('Xela Tortillería', pageW / 2, y, { align: 'center' });
+    y += 7;
+
+    doc.setFontSize(12);
+    doc.setTextColor(60, 60, 60);
+    doc.text('Reporte de Resultados', pageW / 2, y, { align: 'center' });
+    y += 6;
+
+    // Period
+    const periodText = startStr === endStr
+      ? fmtDate(startDate)
+      : `${fmtDate(startDate)} — ${fmtDate(endDate)}`;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Período: ${periodText}`, pageW / 2, y, { align: 'center' });
+    y += 5;
+    doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, pageW / 2, y, { align: 'center' });
+    y += 8;
+
+    // Divider
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y, pageW - margin, y);
+    y += 6;
+
+    // KPIs
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(45, 106, 79);
+    doc.text('Resumen Financiero', margin, y);
+    y += 6;
+
+    const kpis = [
+      { label: 'Total Ventas', value: fmt(totalSales), color: [39, 174, 96] },
+      { label: 'Total Gastos', value: fmt(totalExpense), color: [231, 76, 60] },
+      { label: 'Utilidad Neta', value: fmt(netProfit), color: netProfit >= 0 ? [39, 174, 96] : [231, 76, 60] },
+    ];
+    const colW = (pageW - margin * 2) / kpis.length;
+    kpis.forEach((k, i) => {
+      const x = margin + i * colW;
+      doc.setDrawColor(220, 220, 220);
+      doc.setFillColor(248, 250, 248);
+      doc.roundedRect(x + 1, y, colW - 3, 16, 2, 2, 'FD');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text(k.label, x + (colW - 3) / 2 + 1, y + 5, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(...k.color);
+      doc.text(k.value, x + (colW - 3) / 2 + 1, y + 12, { align: 'center' });
+    });
+    y += 22;
+
+    // Best product
+    if (bestProduct && bestProduct.qty > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`Producto más vendido: ${bestProduct.name} — ${bestProduct.qty.toFixed(1)} docenas (${fmt(bestProduct.total)})`, margin, y);
+      y += 8;
+    }
+
+    // Divider
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y, pageW - margin, y);
+    y += 6;
+
+    // Daily breakdown table
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(45, 106, 79);
+    doc.text('Desglose Diario', margin, y);
+    y += 4;
+
+    const dayLabels = { 1: 'Lun', 2: 'Mar', 3: 'Mié', 4: 'Jue', 5: 'Vie', 6: 'Sáb', 0: 'Dom' };
+    const dailyRows = days.map(d => {
+      const dt = new Date(d + 'T12:00:00');
+      const daySales = getData('sales', []).filter(s => s.date === d);
+      const dayTxs = getData('transactions', []).filter(t => t.date === d);
+      const inc = daySales.reduce((a, s) => a + s.total, 0) + dayTxs.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
+      const exp = dayTxs.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
+      const net = inc - exp;
+      const label = `${dayLabels[dt.getDay()]} ${dt.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}`;
+      return [label, fmt(inc), fmt(exp), { content: fmt(net), styles: { textColor: net >= 0 ? [39, 174, 96] : [231, 76, 60] } }];
+    });
+
+    doc.autoTable({
+      startY: y,
+      head: [['Día', 'Ingresos', 'Gastos', 'Neto']],
+      body: dailyRows,
+      margin: { left: margin, right: margin },
+      headStyles: { fillColor: [45, 106, 79], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 9, textColor: [60, 60, 60] },
+      alternateRowStyles: { fillColor: [245, 250, 247] },
+      columnStyles: {
+        0: { cellWidth: 30 },
+        1: { halign: 'right', textColor: [39, 174, 96] },
+        2: { halign: 'right', textColor: [231, 76, 60] },
+        3: { halign: 'right' },
+      },
+      theme: 'grid',
+    });
+
+    // Footer note
+    const finalY = doc.lastAutoTable.finalY + 8;
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Generado por el Sistema Interno de Xela Tortillería', pageW / 2, finalY, { align: 'center' });
+
+    // Save
+    const fileName = `Reporte_Xela_${startStr}${startStr !== endStr ? '_a_' + endStr : ''}.pdf`;
+    doc.save(fileName);
+  };
+
+  // Load logo as base64, then build PDF
+  const canvas = document.createElement('canvas');
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    buildPdf(canvas.toDataURL('image/png'));
+  };
+  img.onerror = () => buildPdf(null);
+  img.src = '../logoxela.png';
 }
