@@ -1009,6 +1009,46 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   font-weight: 700;
   color: var(--sys-primary);
 }
+/* Multi-row variant for CRM running total */
+.order-running-total--multi {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.order-running-delivery {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px dashed #A7F3D0;
+}
+.order-running-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+/* Delivery toggle row in POS */
+.delivery-toggle-row {
+  margin: 0.4rem 0 0.5rem;
+}
+.delivery-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--sys-text);
+}
+.delivery-label input[type="checkbox"] {
+  accent-color: var(--sys-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 
 /* ---- Redesigned order cards ---- */
 .order-card-new {
