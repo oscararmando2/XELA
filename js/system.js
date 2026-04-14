@@ -107,6 +107,11 @@ function initSampleData() {
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
+// ---- HTML escape to prevent XSS ----
+function esc(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ---- Conversión kg → docenas (1 kg masa = 4 docenas) ----
 const KG_TO_DOCENAS = 4;
 
@@ -587,7 +592,7 @@ function initContador() {
 
   // Show "Ver Historial de Cortes" only for Dueño (control role)
   if (currentRole === 'control') {
-    document.getElementById('verCortesBtn').style.display = '';
+    document.getElementById('verCortesBtn').style.display = 'block';
   }
 
   renderContador();
@@ -647,23 +652,24 @@ function showCorteSummary() {
 
   const byProduct = {};
   sales.forEach(s => { byProduct[s.productName] = (byProduct[s.productName] || 0) + s.qty; });
-  const topProduct = Object.entries(byProduct).sort((a, b) => b[1] - a[1])[0];
+  const topProductEntries = Object.entries(byProduct).sort((a, b) => b[1] - a[1]);
+  const topProduct = topProductEntries.length > 0 ? topProductEntries[0] : null;
 
   const timeStr = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
   const dateStr = now.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   document.getElementById('corteSummaryContent').innerHTML = `
     <div class="corte-summary-header">
-      <div class="corte-who">\U0001F464 Realizado por: <strong>${who}</strong></div>
-      <div class="corte-datetime">\U0001F4C5 ${dateStr} — <strong>${timeStr}</strong></div>
+      <div class="corte-who">👤 Realizado por: <strong>${esc(who)}</strong></div>
+      <div class="corte-datetime">📅 ${dateStr} — <strong>${timeStr}</strong></div>
     </div>
     <div class="corte-kpis">
-      <div class="corte-kpi green"><div class="ck-label">\U0001F4B5 Total Ventas</div><div class="ck-value">${fmt(ingresos)}</div></div>
-      <div class="corte-kpi red"><div class="ck-label">\U0001F9FE Total Gastos</div><div class="ck-value">${fmt(gastos)}</div></div>
-      <div class="corte-kpi ${netProfit >= 0 ? 'purple' : 'red'}"><div class="ck-label">\U0001F4CA Utilidad Neta</div><div class="ck-value" style="color:${netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(netProfit)}</div></div>
-      <div class="corte-kpi blue"><div class="ck-label">\U0001F3E6 Efectivo en Caja</div><div class="ck-value">${fmt(cash)}</div></div>
-      <div class="corte-kpi orange"><div class="ck-label">\U0001F947 M\u00e1s Vendido</div><div class="ck-value">${topProduct ? topProduct[0].replace('Tortilla de ','') : '—'}</div></div>
-      <div class="corte-kpi teal"><div class="ck-label">\U0001F69A Entregas del D\u00eda</div><div class="ck-value">${orders.length}</div></div>
+      <div class="corte-kpi green"><div class="ck-label">💵 Total Ventas</div><div class="ck-value">${fmt(ingresos)}</div></div>
+      <div class="corte-kpi red"><div class="ck-label">🧾 Total Gastos</div><div class="ck-value">${fmt(gastos)}</div></div>
+      <div class="corte-kpi ${netProfit >= 0 ? 'purple' : 'red'}"><div class="ck-label">📊 Utilidad Neta</div><div class="ck-value" style="color:${netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(netProfit)}</div></div>
+      <div class="corte-kpi blue"><div class="ck-label">🏦 Efectivo en Caja</div><div class="ck-value">${fmt(cash)}</div></div>
+      <div class="corte-kpi orange"><div class="ck-label">🥇 Más Vendido</div><div class="ck-value">${topProduct ? esc(topProduct[0].replace('Tortilla de ','')) : '—'}</div></div>
+      <div class="corte-kpi teal"><div class="ck-label">🚚 Entregas del D\u00eda</div><div class="ck-value">${orders.length}</div></div>
     </div>
   `;
   // Store draft corte data for confirmation
@@ -700,16 +706,16 @@ function openCortesHist() {
     list.innerHTML = [...cortes].reverse().map(c => `
       <div class="corte-hist-item">
         <div class="chi-header">
-          <span class="chi-date">\U0001F4C5 ${c.date} — <strong>${c.time}</strong></span>
-          <span class="chi-who">\U0001F464 ${c.who}</span>
+          <span class="chi-date">📅 ${c.date} — <strong>${c.time}</strong></span>
+          <span class="chi-who">👤 ${esc(c.who)}</span>
         </div>
         <div class="chi-kpis">
-          <span>\U0001F4B5 Ventas: <strong>${fmt(c.ingresos)}</strong></span>
-          <span>\U0001F9FE Gastos: <strong>${fmt(c.gastos)}</strong></span>
-          <span>\U0001F4CA Utilidad: <strong style="color:${c.netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(c.netProfit)}</strong></span>
-          <span>\U0001F3E6 Caja: <strong>${fmt(c.cash)}</strong></span>
-          <span>\U0001F947 Top: <strong>${c.topProduct ? c.topProduct.replace('Tortilla de ','') : '—'}</strong></span>
-          <span>\U0001F69A Entregas: <strong>${c.ordersDelivered}</strong></span>
+          <span>💵 Ventas: <strong>${fmt(c.ingresos)}</strong></span>
+          <span>🧾 Gastos: <strong>${fmt(c.gastos)}</strong></span>
+          <span>📊 Utilidad: <strong style="color:${c.netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(c.netProfit)}</strong></span>
+          <span>🏦 Caja: <strong>${fmt(c.cash)}</strong></span>
+          <span>🥇 Top: <strong>${c.topProduct ? esc(c.topProduct.replace('Tortilla de ','')) : '—'}</strong></span>
+          <span>🚚 Entregas: <strong>${c.ordersDelivered}</strong></span>
         </div>
       </div>
     `).join('');
@@ -738,8 +744,15 @@ function renderContador() {
                     transactions.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
   const allExpense = transactions.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
 
-  document.getElementById('cntTotalIncome').textContent = corteDoneToday ? fmt(0) + ' (corte realizado)' : fmt(todayIncome);
+  document.getElementById('cntTotalIncome').textContent = fmt(todayIncome);
   document.getElementById('cntTotalExpense').textContent = fmt(todayExpense);
+  if (corteDoneToday) {
+    document.getElementById('cntTotalIncome').title = 'Corte de caja realizado hoy';
+    document.getElementById('cntTotalIncome').style.opacity = '0.5';
+  } else {
+    document.getElementById('cntTotalIncome').title = '';
+    document.getElementById('cntTotalIncome').style.opacity = '';
+  }
   document.getElementById('cntCash').textContent = fmt(allIncome - allExpense);
   const profit = todayIncome - todayExpense;
   document.getElementById('cntProfit').textContent = fmt(profit);
@@ -1126,11 +1139,11 @@ function renderClientList() {
     return `<div class="client-card">
       <div class="client-card-header">
         <div>
-          <div class="client-name">👤 ${c.name}</div>
-          ${c.phone ? `<div class="client-detail">📱 ${c.phone}</div>` : ''}
-          ${c.address ? `<div class="client-detail">📍 ${c.address}</div>` : ''}
+          <div class="client-name">👤 ${esc(c.name)}</div>
+          ${c.phone ? `<div class="client-detail">📱 ${esc(c.phone)}</div>` : ''}
+          ${c.address ? `<div class="client-detail">📍 ${esc(c.address)}</div>` : ''}
           <div class="client-detail">🛒 ${clientOrders.length} pedido(s) — Total: ${fmt(totalPurchases)}</div>
-          ${c.notes ? `<div class="client-notes">${c.notes}</div>` : ''}
+          ${c.notes ? `<div class="client-notes">${esc(c.notes)}</div>` : ''}
         </div>
         <div class="client-card-actions">
           ${c.phone ? `<a href="https://wa.me/52${c.phone.replace(/\D/g,'')}" target="_blank" class="btn-secondary-sys">💬</a>` : ''}
@@ -1215,7 +1228,7 @@ function checkRecurringOrders() {
   });
   if (created > 0) {
     setData('orders', orders);
-    toast(`\U0001F504 ${created} pedido(s) recurrente(s) creado(s) autom\u00e1ticamente`, 'success');
+    toast(`🔄 ${created} pedido(s) recurrente(s) creado(s) autom\u00e1ticamente`, 'success');
     updateCRMBadge(created);
   }
 }
@@ -1251,12 +1264,12 @@ function renderOrderList() {
     }).join('');
     return `<div class="order-card-new">
       <div class="order-card-body">
-        <div class="order-client-name">👤 ${o.clientName}</div>
-        ${o.clientAddress ? `<div class="order-detail">📍 ${o.clientAddress}</div>` : ''}
+        <div class="order-client-name">👤 ${esc(o.clientName)}</div>
+        ${o.clientAddress ? `<div class="order-detail">📍 ${esc(o.clientAddress)}</div>` : ''}
         <div class="order-detail">📅 Entrega: ${o.date}</div>
         <div class="order-products-list">${productsHtml}</div>
         <div class="order-total-line">Total: ${fmt(orderTotal)}</div>
-        ${o.notes ? `<div class="order-detail order-notes-text">${o.notes}</div>` : ''}
+        ${o.notes ? `<div class="order-detail order-notes-text">${esc(o.notes)}</div>` : ''}
       </div>
       <div class="order-card-actions-row">
         <button class="btn-entregado" onclick="markDelivered('${o.id}')">✅ Entregado</button>
@@ -1326,24 +1339,24 @@ function renderHistorialList() {
     const productsHtml = items.map(i => {
       const prod = PRODUCTS.find(p => p.id === i.productId);
       const unitLabel = prod ? prod.unit : 'doc';
-      return `<div class="order-product-item">\u{1F4E6} ${(i.productName || '').replace('Tortilla de ', '')} \u2014 ${i.qty} ${pluralUnit(unitLabel, i.qty)} \u2014 ${fmt(i.total)}</div>`;
+      return `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ', '')} \u2014 ${i.qty} ${pluralUnit(unitLabel, i.qty)} \u2014 ${fmt(i.total)}</div>`;
     }).join('');
-    const cancelInfo = isCancelled && o.cancelReason ? `<div class="order-detail hist-cancel-reason">\u{1F4CC} Motivo: ${o.cancelReason}</div>` : '';
+    const cancelInfo = isCancelled && o.cancelReason ? `<div class="order-detail hist-cancel-reason">📌 Motivo: ${esc(o.cancelReason)}</div>` : '';
     const statusBadge = isCancelled
       ? '<span class="hist-badge cancelled">\u274C Cancelado</span>'
       : '<span class="hist-badge delivered">\u2705 Entregado</span>';
     return `<div class="order-card-new ${isCancelled ? 'order-card-cancelled' : ''}">
       <div class="order-card-body">
         <div class="order-card-hist-header">
-          <div class="order-client-name">\u{1F464} ${o.clientName}</div>
+          <div class="order-client-name">👤 ${esc(o.clientName)}</div>
           ${statusBadge}
         </div>
-        ${o.clientAddress ? `<div class="order-detail">\u{1F4CD} ${o.clientAddress}</div>` : ''}
-        <div class="order-detail">\u{1F4C5} ${o.date}</div>
+        ${o.clientAddress ? `<div class="order-detail">📍 ${esc(o.clientAddress)}</div>` : ''}
+        <div class="order-detail">📅 ${o.date}</div>
         <div class="order-products-list">${productsHtml}</div>
         <div class="order-total-line">Total: ${fmt(orderTotal)}</div>
         ${cancelInfo}
-        ${o.notes ? `<div class="order-detail order-notes-text">"${o.notes}"</div>` : ''}
+        ${o.notes ? `<div class="order-detail order-notes-text">"${esc(o.notes)}"</div>` : ''}
       </div>
     </div>`;
   }).join('');
