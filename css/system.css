@@ -558,6 +558,20 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   transition: all var(--transition);
 }
 .pay-btn.active { border-color: var(--sys-primary); background: #F0FDF4; color: var(--sys-primary); }
+.bill-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin: 0.5rem 0; }
+.bill-btn {
+  padding: 0.75rem 0.5rem;
+  border: 2px solid var(--sys-primary);
+  background: #fff;
+  border-radius: var(--radius);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--sys-primary);
+  cursor: pointer;
+  transition: all var(--transition);
+  touch-action: manipulation;
+}
+.bill-btn:active { background: var(--sys-primary); color: #fff; transform: scale(0.96); }
 #cashPaySection label { font-size: 0.95rem; font-weight: 700; color: var(--sys-text); text-transform: uppercase; letter-spacing: 0.5px; }
 #cashReceived {
   width: 100%;

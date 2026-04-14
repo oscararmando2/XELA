@@ -438,6 +438,11 @@ function updateChange() {
   document.getElementById('changeDisplay').style.color = change < 0 ? 'var(--sys-red)' : 'var(--sys-green)';
 }
 
+function setBillAmount(amount) {
+  document.getElementById('cashReceived').value = amount;
+  updateChange();
+}
+
 function confirmSale() {
   if (currentOrder.length === 0) { toast('Agrega al menos un producto', 'warning'); return; }
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);

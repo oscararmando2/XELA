@@ -178,6 +178,12 @@
                   </div>
                   <div id="cashPaySection">
                     <label>💰 Monto recibido: $</label>
+                    <div class="bill-btns">
+                      <button type="button" class="bill-btn" onclick="setBillAmount(50)">$50</button>
+                      <button type="button" class="bill-btn" onclick="setBillAmount(100)">$100</button>
+                      <button type="button" class="bill-btn" onclick="setBillAmount(200)">$200</button>
+                      <button type="button" class="bill-btn" onclick="setBillAmount(500)">$500</button>
+                    </div>
                     <input type="number" id="cashReceived" placeholder="0.00" min="0" step="0.5" />
                     <div class="change-display">
                       💲 Cambio: <strong id="changeDisplay">$0.00</strong>
