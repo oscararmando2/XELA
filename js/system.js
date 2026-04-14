@@ -669,7 +669,7 @@ function showCorteSummary() {
       <div class="corte-kpi ${netProfit >= 0 ? 'purple' : 'red'}"><div class="ck-label">📊 Utilidad Neta</div><div class="ck-value" style="color:${netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(netProfit)}</div></div>
       <div class="corte-kpi blue"><div class="ck-label">🏦 Efectivo en Caja</div><div class="ck-value">${fmt(cash)}</div></div>
       <div class="corte-kpi orange"><div class="ck-label">🥇 Más Vendido</div><div class="ck-value">${topProduct ? esc(topProduct[0].replace('Tortilla de ','')) : '—'}</div></div>
-      <div class="corte-kpi teal"><div class="ck-label">🚚 Entregas del D\u00eda</div><div class="ck-value">${orders.length}</div></div>
+      <div class="corte-kpi teal"><div class="ck-label">🚚 Entregas del Día</div><div class="ck-value">${orders.length}</div></div>
     </div>
   `;
   // Store draft corte data for confirmation
@@ -692,12 +692,12 @@ function confirmCorte() {
   setData('corte_last_date', today());
 
   closeCorteModal();
-  toast('\u2705 Corte de caja realizado y guardado', 'success');
+  toast('✅ Corte de caja realizado y guardado', 'success');
   renderContador();
 }
 
 function openCortesHist() {
-  if (currentRole !== 'control') { toast('Solo el Due\u00f1o puede ver este historial', 'error'); return; }
+  if (currentRole !== 'control') { toast('Solo el Dueño puede ver este historial', 'error'); return; }
   const cortes = getData('cortes', []);
   const list = document.getElementById('cortesHistList');
   if (cortes.length === 0) {
@@ -766,13 +766,13 @@ function renderContador() {
   document.getElementById('cntBreakeven').textContent = be + ' docenas';
   const diff = todaySalesDocenas - parseFloat(be);
   if (corteDoneToday) {
-    document.getElementById('cntBreakevenHint').textContent = '\u2705 Corte de caja realizado hoy';
+    document.getElementById('cntBreakevenHint').textContent = '✅ Corte de caja realizado hoy';
   } else if (parseFloat(be) === 0) {
     document.getElementById('cntBreakevenHint').textContent = 'Sin gastos registrados hoy';
   } else if (diff >= 0) {
-    document.getElementById('cntBreakevenHint').textContent = `\u2705 Superado por ${diff.toFixed(1)} docenas (${fmt(diff * avgPrice)})`;
+    document.getElementById('cntBreakevenHint').textContent = `✅ Superado por ${diff.toFixed(1)} docenas (${fmt(diff * avgPrice)})`;
   } else {
-    document.getElementById('cntBreakevenHint').textContent = `\u26A0\uFE0F Faltan ${Math.abs(diff).toFixed(1)} docenas para cubrir gastos`;
+    document.getElementById('cntBreakevenHint').textContent = `⚠️ Faltan ${Math.abs(diff).toFixed(1)} docenas para cubrir gastos`;
   }
 
   renderTransactionTable();
@@ -1185,7 +1185,7 @@ function saveRecurring(clientId, event) {
   if (!clients[idx].recurringOrders) clients[idx].recurringOrders = [];
   clients[idx].recurringOrders.push({ productId, qty, day });
   setData('clients', clients);
-  toast('Pedido recurrente guardado \u2705');
+  toast('Pedido recurrente guardado ✅');
   renderClientList();
 }
 
@@ -1221,14 +1221,14 @@ function checkRecurringOrders() {
       orders.push({
         id: uid(), clientId: c.id, clientName: c.name, clientAddress: c.address || '',
         items: [item], total: item.total, date: todayStr, status: 'pendiente',
-        notes: 'Pedido recurrente autom\u00e1tico', recurring: true,
+        notes: 'Pedido recurrente automático', recurring: true,
       });
       created++;
     });
   });
   if (created > 0) {
     setData('orders', orders);
-    toast(`🔄 ${created} pedido(s) recurrente(s) creado(s) autom\u00e1ticamente`, 'success');
+    toast(`🔄 ${created} pedido(s) recurrente(s) creado(s) automáticamente`, 'success');
     updateCRMBadge(created);
   }
 }
@@ -1339,12 +1339,12 @@ function renderHistorialList() {
     const productsHtml = items.map(i => {
       const prod = PRODUCTS.find(p => p.id === i.productId);
       const unitLabel = prod ? prod.unit : 'doc';
-      return `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ', '')} \u2014 ${i.qty} ${pluralUnit(unitLabel, i.qty)} \u2014 ${fmt(i.total)}</div>`;
+      return `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ', '')} — ${i.qty} ${pluralUnit(unitLabel, i.qty)} — ${fmt(i.total)}</div>`;
     }).join('');
     const cancelInfo = isCancelled && o.cancelReason ? `<div class="order-detail hist-cancel-reason">📌 Motivo: ${esc(o.cancelReason)}</div>` : '';
     const statusBadge = isCancelled
-      ? '<span class="hist-badge cancelled">\u274C Cancelado</span>'
-      : '<span class="hist-badge delivered">\u2705 Entregado</span>';
+      ? '<span class="hist-badge cancelled">❌ Cancelado</span>'
+      : '<span class="hist-badge delivered">✅ Entregado</span>';
     return `<div class="order-card-new ${isCancelled ? 'order-card-cancelled' : ''}">
       <div class="order-card-body">
         <div class="order-card-hist-header">
