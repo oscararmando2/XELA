@@ -92,16 +92,16 @@ function initSampleData() {
       items: [
         { productId: 'moringa', productName: 'Tortilla de Moringa', qty: 2, price: 30, total: 60 },
         { productId: 'maiz', productName: 'Tortilla de Maíz', qty: 1, price: 15, total: 15 },
-      ], total: 75, date: tmStr, status: 'pendiente', notes: '' },
+      ], subtotal: 75, deliveryFee: 0, total: 75, date: tmStr, status: 'pendiente', notes: '' },
     { id: uid(), clientId: clients[1].id, clientName: clients[1].name, clientAddress: clients[1].address,
       items: [
         { productId: 'maiz', productName: 'Tortilla de Maíz', qty: 3, price: 15, total: 45 },
-      ], total: 45, date: tmStr, status: 'pendiente', notes: '' },
+      ], subtotal: 45, deliveryFee: 0, total: 45, date: tmStr, status: 'pendiente', notes: '' },
     { id: uid(), clientId: clients[2].id, clientName: clients[2].name, clientAddress: clients[2].address,
       items: [
         { productId: 'nopal', productName: 'Tortilla de Nopal', qty: 1, price: 25, total: 25 },
         { productId: 'pasilla', productName: 'Tortilla de Chile Pasilla', qty: 2, price: 25, total: 50 },
-      ], total: 75, date: tmStr, status: 'pendiente', notes: '' },
+      ], subtotal: 75, deliveryFee: 0, total: 75, date: tmStr, status: 'pendiente', notes: '' },
   ];
   setData('orders', orders);
 
@@ -348,6 +348,13 @@ function renderResumen() {
 let currentOrder = [];
 let paymentMethod = 'efectivo';
 
+// ---- Delivery fee ----
+const DELIVERY_FEE = 20;
+const FREE_DELIVERY_DOCENAS = 3;
+
+// ---- CRM order cart ----
+let _orderCart = {};
+
 function initPOS() {
   renderProductButtons();
   renderOrderItems();
@@ -365,6 +372,7 @@ function initPOS() {
   document.getElementById('cashReceived').addEventListener('input', updateChange);
   document.getElementById('discountValue')?.addEventListener('input', () => { renderOrderItems(); });
   document.getElementById('discountType')?.addEventListener('change', () => { renderOrderItems(); });
+  document.getElementById('deliveryToggle')?.addEventListener('change', () => { renderOrderItems(); });
 
   document.getElementById('confirmSaleBtn').addEventListener('click', confirmSale);
   document.getElementById('clearOrderBtn').addEventListener('click', () => {
@@ -436,6 +444,26 @@ function getDiscount(subtotal) {
   return Math.min(subtotal, val);
 }
 
+// Helper: calculate delivery fee from items array
+// items: [{productId, qty}] objects OR [[productId, qty]] entries
+function calcDeliveryFee(items) {
+  let docenas = 0;
+  for (const item of items) {
+    const productId = Array.isArray(item) ? item[0] : item.productId;
+    const qty       = Array.isArray(item) ? item[1] : item.qty;
+    const prod = PRODUCTS.find(p => p.id === productId);
+    if (prod && prod.unit === 'docena') docenas += qty;
+  }
+  const freeDelivery = docenas >= FREE_DELIVERY_DOCENAS;
+  return { docenas, freeDelivery, deliveryFee: freeDelivery ? 0 : DELIVERY_FEE };
+}
+
+// Returns delivery fee for POS (0 when delivery toggle is off)
+function getPOSDeliveryFee() {
+  if (!document.getElementById('deliveryToggle')?.checked) return 0;
+  return calcDeliveryFee(currentOrder).deliveryFee;
+}
+
 function renderOrderItems() {
   const container = document.getElementById('orderItems');
   if (currentOrder.length === 0) {
@@ -444,6 +472,8 @@ function renderOrderItems() {
     document.getElementById('changeDisplay').textContent = '$0.00';
     const discountRow = document.getElementById('discountAmountRow');
     if (discountRow) discountRow.style.display = 'none';
+    const deliveryFeeRowEl = document.getElementById('deliveryFeeRow');
+    if (deliveryFeeRowEl) deliveryFeeRowEl.style.display = 'none';
     const finalTotalEl = document.getElementById('orderFinalTotal');
     if (finalTotalEl) finalTotalEl.textContent = '$0.00';
     renderSmartPaymentButtons(0);
@@ -475,9 +505,31 @@ function renderOrderItems() {
       discountRow.style.display = 'none';
     }
   }
+  // Delivery fee (POS)
+  const isDelivery = document.getElementById('deliveryToggle')?.checked;
+  const deliveryFeeRowEl = document.getElementById('deliveryFeeRow');
+  const deliveryFeeAmt = document.getElementById('deliveryFeeAmt');
+  const deliveryFeeLabel = document.getElementById('deliveryFeeLabel');
+  let posDeliveryFee = 0;
+  if (isDelivery) {
+    const { freeDelivery, deliveryFee } = calcDeliveryFee(currentOrder);
+    posDeliveryFee = deliveryFee;
+    if (deliveryFeeRowEl) {
+      deliveryFeeRowEl.style.display = 'flex';
+      if (freeDelivery) {
+        if (deliveryFeeLabel) deliveryFeeLabel.textContent = '🚚 Envío:';
+        if (deliveryFeeAmt) { deliveryFeeAmt.textContent = 'Envío gratis 🎉'; deliveryFeeAmt.style.color = 'var(--sys-green)'; }
+      } else {
+        if (deliveryFeeLabel) deliveryFeeLabel.textContent = '🚚 Envío:';
+        if (deliveryFeeAmt) { deliveryFeeAmt.textContent = '+' + fmt(deliveryFee); deliveryFeeAmt.style.color = 'var(--sys-orange)'; }
+      }
+    }
+  } else {
+    if (deliveryFeeRowEl) deliveryFeeRowEl.style.display = 'none';
+  }
   const finalTotalEl = document.getElementById('orderFinalTotal');
-  if (finalTotalEl) finalTotalEl.textContent = fmt(subtotal - discount);
-  renderSmartPaymentButtons(subtotal);
+  if (finalTotalEl) finalTotalEl.textContent = fmt(subtotal - discount + posDeliveryFee);
+  renderSmartPaymentButtons(subtotal - discount + posDeliveryFee);
   updateChange();
 }
 
@@ -495,7 +547,8 @@ function removeItem(idx) {
 function updateChange() {
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);
   const discount = getDiscount(subtotal);
-  const finalTotal = subtotal - discount;
+  const deliveryFee = getPOSDeliveryFee();
+  const finalTotal = subtotal - discount + deliveryFee;
   const received = parseFloat(document.getElementById('cashReceived').value) || 0;
   const change = received - finalTotal;
   document.getElementById('changeDisplay').textContent = fmt(Math.max(0, change));
@@ -511,7 +564,9 @@ function confirmSale() {
   if (currentOrder.length === 0) { toast('Agrega al menos un producto', 'warning'); return; }
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);
   const discount = getDiscount(subtotal);
-  const finalTotal = subtotal - discount;
+  const isDelivery = document.getElementById('deliveryToggle')?.checked;
+  const deliveryFee = getPOSDeliveryFee();
+  const finalTotal = subtotal - discount + deliveryFee;
   if (paymentMethod === 'efectivo') {
     const received = parseFloat(document.getElementById('cashReceived').value) || 0;
     if (received < finalTotal) { toast('El monto recibido es insuficiente', 'error'); return; }
@@ -523,21 +578,30 @@ function confirmSale() {
     sales.push({ id: uid(), date: today(), time: timeStr, productId: item.productId, productName: item.productName, emoji: item.emoji, qty: item.qty, price: item.price, total: item.total, payment: paymentMethod });
   });
   setData('sales', sales);
+  const transactions = getData('transactions', []);
   if (discount > 0) {
     const discType = document.getElementById('discountType')?.value || 'pct';
     const discVal = parseFloat(document.getElementById('discountValue')?.value) || 0;
-    const transactions = getData('transactions', []);
     transactions.push({ id: uid(), date: today(), type: 'gasto', desc: `Descuento cliente frecuente (${discType === 'pct' ? discVal + '%' : '$' + discVal})`, amount: discount });
-    setData('transactions', transactions);
   }
-  const discountMsg = discount > 0 ? ` (descuento ${fmt(discount)})` : '';
-  toast(`Venta registrada: ${fmt(finalTotal)}${discountMsg} ✅`);
+  if (deliveryFee > 0) {
+    transactions.push({ id: uid(), date: today(), type: 'ingreso', desc: 'Cargo envío a domicilio', amount: deliveryFee });
+  }
+  setData('transactions', transactions);
+  let deliveryMsg = '';
+  if (isDelivery) deliveryMsg = deliveryFee > 0 ? ' + 🚚 $20 envío' : ' 🎉 envío gratis';
+  const discountMsg = discount > 0 ? ` (desc. ${fmt(discount)})` : '';
+  toast(`Venta registrada: ${fmt(finalTotal)}${discountMsg}${deliveryMsg} ✅`);
   currentOrder = [];
   document.getElementById('cashReceived').value = '';
   const discountValueEl = document.getElementById('discountValue');
   if (discountValueEl) discountValueEl.value = '';
   const discountRow = document.getElementById('discountAmountRow');
   if (discountRow) discountRow.style.display = 'none';
+  const deliveryFeeRowEl = document.getElementById('deliveryFeeRow');
+  if (deliveryFeeRowEl) deliveryFeeRowEl.style.display = 'none';
+  const deliveryToggle = document.getElementById('deliveryToggle');
+  if (deliveryToggle) deliveryToggle.checked = false;
   renderOrderItems();
   renderSalesToday();
   updateLowStockBadge();
@@ -1080,11 +1144,13 @@ function initCRM() {
       toast(`Cliente "${name}" registrado automáticamente ✅`);
     }
 
-    const orderTotal = items.reduce((a, i) => a + i.total, 0);
+    const subtotal = items.reduce((a, i) => a + i.total, 0);
+    const { freeDelivery, deliveryFee } = calcDeliveryFee(items);
+    const orderTotal = subtotal + deliveryFee;
     const orders = getData('orders', []);
     orders.push({
       id: uid(), clientId: client.id, clientName: client.name, clientAddress: client.address || '',
-      items, total: orderTotal, date, status: 'pendiente',
+      items, subtotal, deliveryFee, total: orderTotal, date, status: 'pendiente',
       notes: document.getElementById('orderNotes').value.trim(),
     });
     setData('orders', orders);
@@ -1099,7 +1165,8 @@ function initCRM() {
     // Reset date to today
     document.getElementById('orderDate').value = today();
     document.getElementById('customDateWrap').style.display = 'none';
-    toast('Pedido registrado ✅');
+    const deliveryInfo = freeDelivery ? ' — Envío gratis 🎉' : ` — 🚚 Envío $${DELIVERY_FEE}`;
+    toast(`Pedido registrado: ${fmt(orderTotal)}${deliveryInfo} ✅`);
     renderCRM();
   });
 
@@ -1229,9 +1296,10 @@ function checkRecurringOrders() {
       const prod = PRODUCTS.find(p => p.id === r.productId);
       if (!prod) return;
       const item = { productId: r.productId, productName: prod.name, qty: r.qty, price: prod.price, total: r.qty * prod.price };
+      const { freeDelivery: recFree, deliveryFee: recFee } = calcDeliveryFee([item]);
       orders.push({
         id: uid(), clientId: c.id, clientName: c.name, clientAddress: c.address || '',
-        items: [item], total: item.total, date: todayStr, status: 'pendiente',
+        items: [item], subtotal: item.total, deliveryFee: recFee, total: item.total + recFee, date: todayStr, status: 'pendiente',
         notes: 'Pedido recurrente automático', recurring: true,
       });
       created++;
@@ -1257,6 +1325,106 @@ function updateCRMBadge(count) {
   }
 }
 
+// ---- CRM order cart helpers ----
+function getOrderCart() { return _orderCart; }
+
+function addToOrderCart(productId) {
+  _orderCart[productId] = (_orderCart[productId] || 0) + 1;
+  renderOrderProductGrid();
+}
+
+function changeOrderCartQty(productId, delta) {
+  const newQty = (_orderCart[productId] || 0) + delta;
+  if (newQty <= 0) delete _orderCart[productId];
+  else _orderCart[productId] = newQty;
+  renderOrderProductGrid();
+}
+
+function renderOrderProductGrid() {
+  const container = document.getElementById('orderProductGrid');
+  if (!container) return;
+  container.innerHTML = PRODUCTS.map(p => {
+    const qty = _orderCart[p.id] || 0;
+    return `<button type="button" class="order-grid-btn${qty > 0 ? ' active' : ''}" onclick="addToOrderCart('${p.id}')">
+      ${qty > 0 ? `<span class="og-badge">${qty}</span>` : ''}
+      <span class="og-emoji">${p.emoji}</span>
+      <span class="og-name">${p.name.replace('Tortilla de ', '')}</span>
+      <span class="og-price">${fmt(p.price)} / ${p.unit}</span>
+    </button>`;
+  }).join('');
+  renderOrderCart();
+}
+
+function renderOrderCart() {
+  const summary = document.getElementById('orderCartSummary');
+  const cartItems = document.getElementById('orderCartItems');
+  const runningTotal = document.getElementById('orderRunningTotal');
+  const deliveryRow = document.getElementById('orderDeliveryFeeRow');
+  const deliveryAmt = document.getElementById('orderDeliveryFeeAmt');
+  if (!summary || !cartItems || !runningTotal) return;
+
+  const entries = Object.entries(_orderCart).filter(([, qty]) => qty > 0);
+  if (entries.length === 0) {
+    summary.style.display = 'none';
+    if (deliveryRow) deliveryRow.style.display = 'none';
+    runningTotal.textContent = '$0.00';
+    return;
+  }
+
+  summary.style.display = 'block';
+  cartItems.innerHTML = entries.map(([productId, qty]) => {
+    const prod = PRODUCTS.find(p => p.id === productId);
+    if (!prod) return '';
+    const total = qty * prod.price;
+    return `<div class="cart-item">
+      <span class="ci-info">${prod.emoji} ${prod.name.replace('Tortilla de ', '')}</span>
+      <div class="ci-controls">
+        <button type="button" onclick="changeOrderCartQty('${productId}', -1)">−</button>
+        <span>${qty} ${pluralUnit(prod.unit, qty)}</span>
+        <button type="button" onclick="changeOrderCartQty('${productId}', 1)">+</button>
+      </div>
+      <span class="ci-total">${fmt(total)}</span>
+      <button type="button" class="ci-controls" style="border:none;background:none;cursor:pointer;color:var(--sys-red);font-size:1rem;" onclick="changeOrderCartQty('${productId}', -999)">✕</button>
+    </div>`;
+  }).join('');
+
+  const subtotal = entries.reduce((a, [pid, qty]) => {
+    const prod = PRODUCTS.find(p => p.id === pid);
+    return a + (prod ? qty * prod.price : 0);
+  }, 0);
+
+  const { freeDelivery, deliveryFee } = calcDeliveryFee(entries);
+  const total = subtotal + deliveryFee;
+
+  if (deliveryRow) {
+    deliveryRow.style.display = 'flex';
+    if (freeDelivery) {
+      if (deliveryAmt) { deliveryAmt.textContent = 'Envío gratis 🎉'; deliveryAmt.style.color = 'var(--sys-green)'; }
+    } else {
+      if (deliveryAmt) { deliveryAmt.textContent = fmt(deliveryFee); deliveryAmt.style.color = 'var(--sys-orange)'; }
+    }
+  }
+  runningTotal.textContent = fmt(total);
+}
+
+function markDelivered(id) {
+  const orders = getData('orders', []);
+  const idx = orders.findIndex(o => o.id === id);
+  if (idx < 0) return;
+  orders[idx].status = 'entregado';
+  orders[idx].deliveredDate = today();
+  setData('orders', orders);
+  toast(`Entrega de ${orders[idx].clientName} completada ✅`);
+  renderCRM();
+  // Sync map route stops if active
+  optimizedStops.forEach(s => { if (s.order.id === id) s.order.status = 'entregado'; });
+  const rutaTab = document.querySelector('.crm-tab[data-crm="ruta"]');
+  if (rutaTab && rutaTab.classList.contains('active')) {
+    renderRouteStops();
+    updateRouteProgress();
+  }
+}
+
 function renderOrderList() {
   const orders = getData('orders', []).filter(o => o.status === 'pendiente');
   const container = document.getElementById('orderList');
@@ -1273,12 +1441,16 @@ function renderOrderList() {
       const unitLabel = prod ? prod.unit : 'doc';
       return `<div class="order-product-item">📦 ${(i.productName || '').replace('Tortilla de ','')} — ${i.qty} ${pluralUnit(unitLabel, i.qty)} — ${fmt(i.total)}</div>`;
     }).join('');
+    const deliveryHtml = o.deliveryFee > 0
+      ? `<div class="order-detail" style="color:var(--sys-orange)">🚚 Envío: ${fmt(o.deliveryFee)}</div>`
+      : (o.subtotal !== undefined ? `<div class="order-detail" style="color:var(--sys-green)">🚚 Envío gratis 🎉</div>` : '');
     return `<div class="order-card-new">
       <div class="order-card-body">
         <div class="order-client-name">👤 ${esc(o.clientName)}</div>
         ${o.clientAddress ? `<div class="order-detail">📍 ${esc(o.clientAddress)}</div>` : ''}
         <div class="order-detail">📅 Entrega: ${o.date}</div>
         <div class="order-products-list">${productsHtml}</div>
+        ${deliveryHtml}
         <div class="order-total-line">Total: ${fmt(orderTotal)}</div>
         ${o.notes ? `<div class="order-detail order-notes-text">${esc(o.notes)}</div>` : ''}
       </div>
@@ -1356,6 +1528,9 @@ function renderHistorialList() {
     const statusBadge = isCancelled
       ? '<span class="hist-badge cancelled">❌ Cancelado</span>'
       : '<span class="hist-badge delivered">✅ Entregado</span>';
+    const deliveryHtml = o.deliveryFee > 0
+      ? `<div class="order-detail" style="color:var(--sys-orange)">🚚 Envío: ${fmt(o.deliveryFee)}</div>`
+      : (o.subtotal !== undefined ? `<div class="order-detail" style="color:var(--sys-green)">🚚 Envío gratis 🎉</div>` : '');
     return `<div class="order-card-new ${isCancelled ? 'order-card-cancelled' : ''}">
       <div class="order-card-body">
         <div class="order-card-hist-header">
@@ -1365,6 +1540,7 @@ function renderHistorialList() {
         ${o.clientAddress ? `<div class="order-detail">📍 ${esc(o.clientAddress)}</div>` : ''}
         <div class="order-detail">📅 ${o.date}</div>
         <div class="order-products-list">${productsHtml}</div>
+        ${deliveryHtml}
         <div class="order-total-line">Total: ${fmt(orderTotal)}</div>
         ${cancelInfo}
         ${o.notes ? `<div class="order-detail order-notes-text">"${esc(o.notes)}"</div>` : ''}

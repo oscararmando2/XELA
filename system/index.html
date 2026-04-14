@@ -186,6 +186,13 @@
                     <span>Descuento:</span>
                     <strong id="discountAmount" style="color:var(--sys-green);">-$0.00</strong>
                   </div>
+                  <div class="delivery-toggle-row">
+                    <label class="delivery-label"><input type="checkbox" id="deliveryToggle" /> 🚚 Entrega a domicilio</label>
+                  </div>
+                  <div class="order-total-row" id="deliveryFeeRow" style="display:none;">
+                    <span id="deliveryFeeLabel">🚚 Envío:</span>
+                    <strong id="deliveryFeeAmt">$0.00</strong>
+                  </div>
                   <div class="order-total-row order-final-total-row">
                     <span>Total a pagar:</span>
                     <strong id="orderFinalTotal">$0.00</strong>
@@ -458,9 +465,15 @@
                   </div>
 
                   <!-- Running total -->
-                  <div class="order-running-total">
-                    <span>Total del pedido:</span>
-                    <span id="orderRunningTotal" class="running-total-amount">$0.00</span>
+                  <div class="order-running-total order-running-total--multi">
+                    <div id="orderDeliveryFeeRow" class="order-running-delivery" style="display:none;">
+                      <span id="orderDeliveryFeeLabel">🚚 Envío:</span>
+                      <span id="orderDeliveryFeeAmt"></span>
+                    </div>
+                    <div class="order-running-main">
+                      <span>Total del pedido:</span>
+                      <span id="orderRunningTotal" class="running-total-amount">$0.00</span>
+                    </div>
                   </div>
 
                   <!-- Auto-date: defaults to today, collapsible for other day -->
