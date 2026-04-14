@@ -1872,7 +1872,7 @@ function generateReport() {
   const totalSales = sales.reduce((a, s) => a + s.total, 0);
   const totalIncome = totalSales + transactions.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
-  const netProfit = totalIncome - totalExpense;
+  const netProfit = totalSales - totalExpense;
 
   // Show report
   document.getElementById('reportPlaceholder').style.display = 'none';
