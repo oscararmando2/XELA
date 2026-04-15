@@ -124,6 +124,7 @@ function _refreshUI(key) {
       case 'clients':
         if (document.getElementById('mod-crm').classList.contains('active')) renderClientList(); break;
       case 'orders':
+        refreshCRMBadge();
         if (document.getElementById('mod-crm').classList.contains('active')) renderCRM(); break;
       case 'cortes':
         renderContador(); break;
@@ -232,6 +233,7 @@ function enterSystem(role) {
   applyRoleAccess(role);
   initDashboard();
   startFirestoreSync();
+  initFCM();
 }
 
 document.getElementById('loginForm').addEventListener('submit', function(e) {
@@ -1555,17 +1557,16 @@ function checkRecurringOrders() {
   if (created > 0) {
     setData('orders', orders);
     toast(`🔄 ${created} pedido(s) recurrente(s) creado(s) automáticamente`, 'success');
-    updateCRMBadge(created);
+    refreshCRMBadge();
   }
 }
 
-function updateCRMBadge(count) {
+function refreshCRMBadge() {
   const badge = document.getElementById('crmBadge');
   if (!badge) return;
-  const current = parseInt(badge.textContent) || 0;
-  const total = current + count;
-  if (total > 0) {
-    badge.textContent = total;
+  const pending = getData('orders', []).filter(o => o.status === 'pendiente' && o.date === today()).length;
+  if (pending > 0) {
+    badge.textContent = pending;
     badge.style.display = 'inline-flex';
   } else {
     badge.style.display = 'none';
@@ -2329,6 +2330,58 @@ function downloadReportPDF() {
   };
   img.onerror = () => buildPdf(null);
   img.src = '../logoxela.png';
+}
+
+// ==========================================
+// FCM — PUSH NOTIFICATIONS
+// ==========================================
+
+// Replace with the VAPID public key from Firebase Console >
+// Project Settings > Cloud Messaging > Web Push certificates.
+const FCM_VAPID_KEY = '';
+
+async function initFCM() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+  // Firebase Messaging must be available (loaded via SDK)
+  if (typeof firebase === 'undefined' || !firebase.messaging) return;
+
+  // Register the service worker (needed by FCM for background messages)
+  let swReg;
+  try {
+    swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+  } catch (e) {
+    console.warn('FCM SW registration failed:', e);
+    return;
+  }
+
+  // Request notification permission (first call will show the browser prompt)
+  let permission;
+  try {
+    permission = await Notification.requestPermission();
+  } catch (e) {
+    permission = 'denied';
+  }
+  if (permission !== 'granted') return;
+
+  // Get the FCM registration token and save it to Firestore
+  try {
+    const messaging = firebase.messaging();
+    const tokenOptions = { serviceWorkerRegistration: swReg };
+    if (FCM_VAPID_KEY) tokenOptions.vapidKey = FCM_VAPID_KEY;
+    const token = await messaging.getToken(tokenOptions);
+    if (token) {
+      db.collection('configuracion').doc('notificaciones').set({ fcmToken: token }, { merge: true })
+        .catch(e => console.warn('Failed to save FCM token:', e));
+    }
+    // Show in-app toast for foreground messages
+    messaging.onMessage(payload => {
+      const title = (payload.notification && payload.notification.title) || 'Xela Tortillería';
+      const body = (payload.notification && payload.notification.body) || '';
+      toast(`🔔 ${title}: ${body}`, 'success');
+    });
+  } catch (e) {
+    console.warn('FCM token error:', e);
+  }
 }
 
 // ---- Auto-restore session on page load ----
