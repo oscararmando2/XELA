@@ -6,6 +6,41 @@
 const PASSWORDS = { control: 'xela2024', equipo: 'xelaempleado' };
 let currentRole = null;
 
+// ---- Session persistence ----
+const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 hours in ms
+const SESSION_KEY = 'xela_session';
+const SESSION_PERSISTENT_KEY = 'xela_session_persistent';
+
+function saveSession(role) {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ role }));
+  localStorage.setItem(SESSION_PERSISTENT_KEY, JSON.stringify({ role, ts: Date.now() }));
+}
+
+function clearSession() {
+  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_PERSISTENT_KEY);
+}
+
+function restoreSession() {
+  // Same-tab: sessionStorage survives page reload but not tab close
+  try {
+    const s = sessionStorage.getItem(SESSION_KEY);
+    if (s) {
+      const { role } = JSON.parse(s);
+      if (PASSWORDS[role]) return role;
+    }
+  } catch (_) {}
+  // Cross-session: localStorage with 8-hour TTL
+  try {
+    const s = localStorage.getItem(SESSION_PERSISTENT_KEY);
+    if (s) {
+      const { role, ts } = JSON.parse(s);
+      if (PASSWORDS[role] && Date.now() - ts < SESSION_TTL) return role;
+    }
+  } catch (_) {}
+  return null;
+}
+
 // ---- Último reporte generado (para PDF) ----
 let lastReportData = null;
 
@@ -190,19 +225,23 @@ document.querySelectorAll('.role-option input[name="loginRole"]').forEach(radio 
   });
 });
 
+function enterSystem(role) {
+  currentRole = role;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'flex';
+  applyRoleAccess(role);
+  initDashboard();
+  startFirestoreSync();
+}
+
 document.getElementById('loginForm').addEventListener('submit', function(e) {
   e.preventDefault();
   const pw = document.getElementById('loginPassword').value;
   const role = document.querySelector('input[name="loginRole"]:checked').value;
   const err = document.getElementById('loginError');
   if (pw === PASSWORDS[role]) {
-    currentRole = role;
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'flex';
-    applyRoleAccess(role);
-    initDashboard();
-    // Start Firestore real-time listeners
-    startFirestoreSync();
+    saveSession(role);
+    enterSystem(role);
   } else {
     err.style.display = 'block';
     document.getElementById('loginPassword').value = '';
@@ -265,6 +304,7 @@ function initDashboard() {
   // Logout
   document.getElementById('logoutBtn').addEventListener('click', () => {
     if (confirm('¿Cerrar sesión?')) {
+      clearSession();
       currentRole = null;
       _moduleInit.clear();
       document.getElementById('dashboard').style.display = 'none';
@@ -2290,3 +2330,11 @@ function downloadReportPDF() {
   img.onerror = () => buildPdf(null);
   img.src = '../logoxela.png';
 }
+
+// ---- Auto-restore session on page load ----
+(function () {
+  const role = restoreSession();
+  if (role) {
+    enterSystem(role);
+  }
+})();
