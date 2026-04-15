@@ -1100,8 +1100,8 @@ function initInventario() {
 }
 
 function renderInventario() {
-  const container = document.getElementById('inventoryList');
   if (!_loaded.inventory) { showSpinner('inventoryList'); return; }
+  const container = document.getElementById('inventoryList');
   const inventory = getData('inventory', []);
   if (inventory.length === 0) {
     container.innerHTML = '<p class="empty-msg">No hay materiales registrados</p>';
