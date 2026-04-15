@@ -824,7 +824,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
 .client-detail { font-size: 0.82rem; color: var(--sys-text-muted); }
 .client-notes { font-size: 0.8rem; color: var(--sys-text-muted); font-style: italic; margin-top: 0.3rem; }
 
-.order-cards { display: flex; flex-direction: column; gap: 0.6rem; max-height: 500px; overflow-y: auto; }
+.order-cards { display: flex; flex-direction: column; gap: 1.25rem; max-height: none; overflow-y: visible; }
 .order-card {
   background: var(--sys-bg);
   border-radius: var(--radius);
@@ -1052,16 +1052,19 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
 
 /* ---- Redesigned order cards ---- */
 .order-card-new {
-  background: var(--sys-bg);
-  border-radius: var(--radius);
-  border-left: 4px solid var(--sys-orange);
+  background: #fff;
+  border-radius: var(--radius-lg);
+  border-left: 5px solid var(--sys-orange);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 .order-card-top {
   display: flex;
   justify-content: flex-end;
-  padding: 0.4rem 0.6rem 0;
+  padding: 0.5rem 0.75rem 0;
 }
 .order-delete-icon {
   background: none;
@@ -1075,30 +1078,44 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
 }
 .order-delete-icon:hover { opacity: 1; background: rgba(229, 62, 62, 0.1); }
 .order-card-body {
-  padding: 0 1rem 0.6rem;
+  padding: 1.25rem 1.25rem 0.75rem;
+  flex: 1;
+}
+.order-client-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--sys-text);
+  margin-bottom: 0.4rem;
+}
+.order-detail {
+  font-size: 0.88rem;
+  color: var(--sys-text-muted);
+  margin-bottom: 0.25rem;
 }
 .order-products-list {
-  margin-top: 0.35rem;
-  padding: 0.35rem 0;
+  margin-top: 0.6rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--sys-border);
+  border-bottom: 1px solid var(--sys-border);
 }
 .order-product-item {
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   color: var(--sys-text);
-  padding: 0.15rem 0;
+  padding: 0.2rem 0;
 }
 .order-total-line {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--sys-primary);
-  margin-top: 0.3rem;
-  padding-top: 0.3rem;
-  border-top: 1px solid var(--sys-border);
+  margin-top: 0.6rem;
+  padding-top: 0;
+  border-top: none;
 }
 .order-notes-text { font-style: italic; }
 .btn-entregado {
   display: block;
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.85rem;
   background: var(--sys-green);
   color: #fff;
   border: none;
@@ -1106,7 +1123,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   font-weight: 700;
   cursor: pointer;
   transition: background var(--transition);
-  border-radius: 0 0 var(--radius) var(--radius);
+  border-radius: 0;
 }
 .btn-entregado:hover { background: #2F855A; }
 .order-badge-done-full {
@@ -1381,6 +1398,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
   .product-buttons { grid-template-columns: 1fr 1fr; }
   .order-product-grid { grid-template-columns: repeat(2, 1fr); }
   .modules-wrap { padding: 1rem; }
+  .order-cards { gap: 1.5rem; }
+  .order-card-new { border-radius: var(--radius-lg); }
 }
 @media (max-width: 400px) {
   .summary-grid { grid-template-columns: 1fr; }
@@ -1430,35 +1449,39 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
    ========================================== */
 .order-card-actions-row {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem 0.75rem;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
 }
 .btn-entregado {
-  flex: 1;
-  padding: 0.65rem 1rem;
+  flex: none;
+  width: 100%;
+  padding: 1rem;
   background: var(--sys-green);
   color: #fff;
   border: none;
-  border-radius: var(--radius);
-  font-size: 0.9rem;
-  font-weight: 600;
+  border-radius: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
   cursor: pointer;
   transition: background var(--transition);
 }
 .btn-entregado:hover { background: #276749; }
 .btn-cancelar {
-  flex: 1;
-  padding: 0.65rem 1rem;
-  background: var(--sys-red);
-  color: #fff;
+  flex: none;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: transparent;
+  color: var(--sys-red);
   border: none;
-  border-radius: var(--radius);
-  font-size: 0.9rem;
+  border-top: 1px solid var(--sys-border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   transition: background var(--transition);
 }
-.btn-cancelar:hover { background: #C53030; }
+.btn-cancelar:hover { background: #FFF5F5; }
 
 /* ==========================================
    FEATURE: HISTORIAL DE ENTREGAS
