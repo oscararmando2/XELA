@@ -576,7 +576,7 @@ function updateOrderZone(lat, lng) {
   const warning = document.getElementById('orderZoneWarning');
   if (warning) {
     const inside = isInsideZone(_orderClientLat, _orderClientLng);
-    warning.style.display = (_orderClientLat != null && !inside) ? 'block' : 'none';
+    warning.style.display = (_orderClientLat != null && _orderClientLng != null && !inside) ? 'block' : 'none';
   }
   renderOrderCart();
 }
@@ -1284,7 +1284,7 @@ function initCRM() {
 
     const subtotal = items.reduce((a, i) => a + i.total, 0);
     const { freeDelivery, deliveryFee } = calcDeliveryFee(items);
-    const outOfZone = !isInsideZone(client.lat, client.lng) && client.lat != null;
+    const outOfZone = !isInsideZone(client.lat, client.lng) && client.lat != null && client.lng != null;
     const zoneExtra = outOfZone ? ZONE_EXTRA_FEE : 0;
     const totalDeliveryFee = deliveryFee + zoneExtra;
     const orderTotal = subtotal + totalDeliveryFee;
@@ -1540,7 +1540,7 @@ function renderOrderCart() {
   }, 0);
 
   const { freeDelivery, deliveryFee } = calcDeliveryFee(entries);
-  const outOfZone = !isInsideZone(_orderClientLat, _orderClientLng) && _orderClientLat != null;
+  const outOfZone = !isInsideZone(_orderClientLat, _orderClientLng) && _orderClientLat != null && _orderClientLng != null;
   const zoneExtra = outOfZone ? ZONE_EXTRA_FEE : 0;
   const totalDeliveryFee = deliveryFee + zoneExtra;
   const total = subtotal + totalDeliveryFee;
