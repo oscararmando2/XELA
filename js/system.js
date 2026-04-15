@@ -34,6 +34,9 @@ const CONFIG_KEYS = ['initialized', 'corte_last_date'];
 // ---- In-memory cache (mirrors Firestore state) ----
 const _cache = {};
 
+// ---- Tracks which collections have received their first Firestore snapshot ----
+const _loaded = {};
+
 // ---- Firestore ready tracking (resolves after first snapshot per collection) ----
 const _readyResolvers = {};
 const _readyPromises = {};
@@ -41,17 +44,19 @@ const _readyPromises = {};
   _readyPromises[k] = new Promise(r => { _readyResolvers[k] = r; });
 });
 
-// ---- Set up real-time Firestore listeners immediately on page load ----
-(function setupFirestoreListeners() {
+// ---- Start real-time Firestore listeners (called after login, runs in background) ----
+function startFirestoreSync() {
   Object.entries(COLLECTION_MAP).forEach(([key, colName]) => {
     db.collection(colName).onSnapshot(snapshot => {
       _cache[key] = [];
       snapshot.forEach(doc => _cache[key].push(doc.data()));
+      _loaded[key] = true;
       if (_readyResolvers[key]) { _readyResolvers[key](); delete _readyResolvers[key]; }
       _refreshUI(key);
     }, err => {
       console.error('Firestore error [' + colName + ']:', err);
       if (!_cache[key]) _cache[key] = [];
+      _loaded[key] = true;
       if (_readyResolvers[key]) { _readyResolvers[key](); delete _readyResolvers[key]; }
     });
   });
@@ -59,16 +64,13 @@ const _readyPromises = {};
   db.collection('config').doc('settings').onSnapshot(doc => {
     const data = doc.exists ? doc.data() : {};
     CONFIG_KEYS.forEach(k => { _cache[k] = data[k]; });
+    _loaded['config'] = true;
     if (_readyResolvers['config']) { _readyResolvers['config'](); delete _readyResolvers['config']; }
   }, err => {
     console.error('Firestore config error:', err);
+    _loaded['config'] = true;
     if (_readyResolvers['config']) { _readyResolvers['config'](); delete _readyResolvers['config']; }
   });
-})();
-
-// ---- Wait for all Firestore collections to deliver their first snapshot ----
-function waitForFirestore() {
-  return Promise.all(Object.values(_readyPromises));
 }
 
 // ---- Re-render UI when Firestore data changes from another device ----
@@ -241,6 +243,20 @@ function toast(msg, type = 'success') {
   setTimeout(() => t.remove(), 3100);
 }
 
+// ---- Show inline loading spinner inside an element ----
+function showSpinner(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  if (el.tagName === 'TBODY') {
+    // Determine colspan from the nearest thead
+    const table = el.closest('table');
+    const cols = table ? (table.querySelector('thead tr')?.cells.length || 4) : 4;
+    el.innerHTML = `<tr><td colspan="${cols}" class="empty-msg"><div class="mod-loading"><span class="mod-spinner"></span> Cargando datos…</div></td></tr>`;
+  } else {
+    el.innerHTML = '<div class="mod-loading"><span class="mod-spinner"></span> Cargando datos…</div>';
+  }
+}
+
 // ==========================================
 // LOGIN
 // ==========================================
@@ -253,22 +269,20 @@ document.querySelectorAll('.role-option input[name="loginRole"]').forEach(radio 
   });
 });
 
-document.getElementById('loginForm').addEventListener('submit', async function(e) {
+document.getElementById('loginForm').addEventListener('submit', function(e) {
   e.preventDefault();
   const pw = document.getElementById('loginPassword').value;
   const role = document.querySelector('input[name="loginRole"]:checked').value;
   const err = document.getElementById('loginError');
   if (pw === PASSWORDS[role]) {
     currentRole = role;
-    const btn = this.querySelector('button[type="submit"]');
-    if (btn) { btn.disabled = true; btn.textContent = 'Conectando…'; }
-    await waitForFirestore();
-    if (btn) { btn.disabled = false; btn.textContent = 'Entrar al Sistema'; }
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('dashboard').style.display = 'flex';
-    initSampleData();
     applyRoleAccess(role);
     initDashboard();
+    // Start Firestore sync in background; init sample data only after config is confirmed empty
+    startFirestoreSync();
+    _readyPromises.config.then(() => initSampleData());
   } else {
     err.style.display = 'block';
     document.getElementById('loginPassword').value = '';
@@ -329,24 +343,17 @@ function initDashboard() {
   document.getElementById('logoutBtn').addEventListener('click', () => {
     if (confirm('¿Cerrar sesión?')) {
       currentRole = null;
+      _moduleInit.clear();
       document.getElementById('dashboard').style.display = 'none';
       document.getElementById('loginScreen').style.display = 'flex';
       document.getElementById('loginPassword').value = '';
       document.getElementById('loginError').style.display = 'none';
     }
   });
-
-  // Init modules
-  initResumen();
-  initPOS();
-  initContador();
-  initInventario();
-  initCRM();
-  initReportes();
-
-  // Check low stock badge
-  updateLowStockBadge();
 }
+
+// ---- Tracks which modules have been initialised (event listeners attached) ----
+const _moduleInit = new Set();
 
 function switchModule(mod) {
   document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
@@ -356,11 +363,26 @@ function switchModule(mod) {
   const titles = { resumen: 'Resumen', pos: 'Punto de Venta', contador: 'Contador Diario', inventario: 'Inventario', crm: 'CRM + Entregas', reportes: 'Reportes' };
   document.getElementById('topbarTitle').textContent = titles[mod] || mod;
   document.getElementById('sidebar').classList.remove('open');
-  if (mod === 'resumen') renderResumen();
-  if (mod === 'pos') renderPOS();
-  if (mod === 'contador') renderContador();
-  if (mod === 'inventario') renderInventario();
-  if (mod === 'crm') renderCRM();
+
+  if (!_moduleInit.has(mod)) {
+    _moduleInit.add(mod);
+    // First visit: run full init (attaches listeners + renders)
+    switch (mod) {
+      case 'resumen':    initResumen(); break;
+      case 'pos':        initPOS(); break;
+      case 'contador':   initContador(); break;
+      case 'inventario': initInventario(); break;
+      case 'crm':        initCRM(); break;
+      case 'reportes':   initReportes(); break;
+    }
+  } else {
+    // Subsequent visits: re-render only
+    if (mod === 'resumen')    renderResumen();
+    if (mod === 'pos')        renderPOS();
+    if (mod === 'contador')   renderContador();
+    if (mod === 'inventario') renderInventario();
+    if (mod === 'crm')        renderCRM();
+  }
 }
 
 // ==========================================
@@ -369,6 +391,15 @@ function switchModule(mod) {
 function initResumen() { renderResumen(); }
 
 function renderResumen() {
+  if (!_loaded.sales || !_loaded.transactions) {
+    ['sum-ingresos', 'sum-gastos', 'sum-caja', 'sum-utilidad', 'sum-equilibrio', 'sum-top-product'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<span class="mod-spinner"></span>';
+    });
+    showSpinner('recentSalesList');
+    showSpinner('recentTransList');
+    return;
+  }
   const todayStr = today();
   const sales = getData('sales', []);
   const transactions = getData('transactions', []);
@@ -449,9 +480,9 @@ let paymentMethod = 'efectivo';
 const DELIVERY_FEE = 20;
 const FREE_DELIVERY_DOCENAS = 3;
 
-// ---- Delivery zone (Zitácuaro city center, 4 km radius) ----
+// ---- Delivery zone (Zitácuaro city center, 3 km radius) ----
 const ZONE_CENTER = { lat: 19.4333, lng: -100.3667 };
-const ZONE_RADIUS_KM = 4;
+const ZONE_RADIUS_KM = 3;
 const ZONE_EXTRA_FEE = 20;
 
 // ---- CRM order cart ----
@@ -489,6 +520,7 @@ function renderPOS() {
 }
 
 function renderProductButtons() {
+  if (!_loaded.inventory) { showSpinner('productButtons'); return; }
   const inventory = getData('inventory', []);
   const html = PRODUCTS.map(p => {
     // Exact match first; fall back to prefix match for legacy inventory IDs (e.g. masa_maiz → maiz)
@@ -731,6 +763,7 @@ function confirmSale() {
 }
 
 function renderSalesToday() {
+  if (!_loaded.sales) { showSpinner('salesTodayBody'); return; }
   const sales = getData('sales', []).filter(s => s.date === today());
   const body = document.getElementById('salesTodayBody');
   if (sales.length === 0) {
@@ -922,6 +955,14 @@ function openCortesHist() {
 }
 
 function renderContador() {
+  if (!_loaded.sales || !_loaded.transactions || !_loaded.config) {
+    ['cntTotalIncome', 'cntTotalExpense', 'cntCash', 'cntProfit', 'cntBreakeven'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<span class="mod-spinner"></span>';
+    });
+    showSpinner('txTableBody');
+    return;
+  }
   const transactions = getData('transactions', []);
   const sales = getData('sales', []);
 
@@ -977,6 +1018,7 @@ function renderContador() {
 }
 
 function renderTransactionTable() {
+  if (!_loaded.transactions) { showSpinner('txTableBody'); return; }
   const transactions = getData('transactions', []);
   const filterDate = document.getElementById('txFilterDate').value;
   const filterType = document.getElementById('txFilterType').value;
@@ -1058,8 +1100,9 @@ function initInventario() {
 }
 
 function renderInventario() {
-  const inventory = getData('inventory', []);
+  if (!_loaded.inventory) { showSpinner('inventoryList'); return; }
   const container = document.getElementById('inventoryList');
+  const inventory = getData('inventory', []);
   if (inventory.length === 0) {
     container.innerHTML = '<p class="empty-msg">No hay materiales registrados</p>';
     return;
@@ -1134,6 +1177,15 @@ let optimizedStops = [];
 let routeStarted = false;
 
 function initCRM() {
+  // Lazy-load Leaflet CSS (only needed for the map in CRM)
+  if (!document.getElementById('leaflet-css')) {
+    const link = document.createElement('link');
+    link.id = 'leaflet-css';
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+  }
+
   // CRM Tabs
   document.querySelectorAll('.crm-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -1211,15 +1263,7 @@ function initCRM() {
     }
   });
 
-  // Update zone when new client lat/lng fields are filled
-  ['orderClientLat', 'orderClientLng'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', function() {
-      const lat = parseFloat(document.getElementById('orderClientLat').value);
-      const lng = parseFloat(document.getElementById('orderClientLng').value);
-      updateOrderZone(isNaN(lat) ? null : lat, isNaN(lng) ? null : lng);
-    });
-  });
+  // Zone updates are now driven by Places autocomplete (see initGooglePlaces)
 
   // POS-style product grid for orders
   renderOrderProductGrid();
@@ -1322,6 +1366,9 @@ function initCRM() {
   document.getElementById('startDeliveriesBtn').addEventListener('click', startDeliveries);
   document.getElementById('openGoogleMapsBtn').addEventListener('click', openInGoogleMaps);
 
+  // Load Google Maps Places API for address autocomplete
+  loadGoogleMapsPlaces().then(initGooglePlaces);
+
   renderCRM();
 }
 
@@ -1333,7 +1380,98 @@ function renderCRM() {
   if (histTab && histTab.classList.contains('active')) renderHistorialList();
 }
 
+// ---- Google Maps Places API — lazy loader ----
+const MAPS_API_KEY = 'AIzaSyA5orV2cj41j6YZHi7Tn-fX62rM3zOLUfI';
+
+function loadGoogleMapsPlaces() {
+  if (window.google?.maps?.places) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    if (document.getElementById('google-maps-api')) {
+      // Script tag already injected; wait for it to finish loading
+      document.getElementById('google-maps-api').addEventListener('load', resolve);
+      document.getElementById('google-maps-api').addEventListener('error', reject);
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'google-maps-api';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_API_KEY}&libraries=places&language=es&region=MX`;
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = () => { console.warn('Google Maps API failed to load'); resolve(); };
+    document.head.appendChild(script);
+  });
+}
+
+// ---- Google Places Autocomplete for address fields ----
+function initGooglePlaces() {
+  if (!window.google?.maps?.places) return;
+
+  // Bias results to Zitácuaro, Michoacán bounding box
+  const ZITACUARO_BOUNDS = new google.maps.LatLngBounds(
+    new google.maps.LatLng(19.38, -100.43),
+    new google.maps.LatLng(19.49, -100.31)
+  );
+
+  const AC_OPTIONS = {
+    bounds: ZITACUARO_BOUNDS,
+    componentRestrictions: { country: 'mx' },
+    fields: ['formatted_address', 'geometry'],
+    strictBounds: false,
+  };
+
+  // ---- Client registration form ----
+  const cliAddressInput = document.getElementById('cliAddress');
+  if (cliAddressInput && !cliAddressInput.dataset.acInit) {
+    cliAddressInput.dataset.acInit = '1';
+    const acCli = new google.maps.places.Autocomplete(cliAddressInput, AC_OPTIONS);
+    acCli.addListener('place_changed', () => {
+      const place = acCli.getPlace();
+      if (!place?.geometry?.location) return;
+      cliAddressInput.value = place.formatted_address || cliAddressInput.value;
+      document.getElementById('cliLat').value = place.geometry.location.lat();
+      document.getElementById('cliLng').value = place.geometry.location.lng();
+      const hint = document.getElementById('cliAddressHint');
+      if (hint) hint.style.display = 'inline';
+    });
+    // Clear coords if user edits the address manually after autocomplete
+    cliAddressInput.addEventListener('input', () => {
+      document.getElementById('cliLat').value = '';
+      document.getElementById('cliLng').value = '';
+      const hint = document.getElementById('cliAddressHint');
+      if (hint) hint.style.display = 'none';
+    });
+  }
+
+  // ---- New client address in order form ----
+  const orderAddressInput = document.getElementById('orderClientAddress');
+  if (orderAddressInput && !orderAddressInput.dataset.acInit) {
+    orderAddressInput.dataset.acInit = '1';
+    const acOrder = new google.maps.places.Autocomplete(orderAddressInput, AC_OPTIONS);
+    acOrder.addListener('place_changed', () => {
+      const place = acOrder.getPlace();
+      if (!place?.geometry?.location) return;
+      orderAddressInput.value = place.formatted_address || orderAddressInput.value;
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      document.getElementById('orderClientLat').value = lat;
+      document.getElementById('orderClientLng').value = lng;
+      const hint = document.getElementById('orderAddressHint');
+      if (hint) hint.style.display = 'inline';
+      updateOrderZone(lat, lng);
+    });
+    // Clear coords if user edits address manually
+    orderAddressInput.addEventListener('input', () => {
+      document.getElementById('orderClientLat').value = '';
+      document.getElementById('orderClientLng').value = '';
+      const hint = document.getElementById('orderAddressHint');
+      if (hint) hint.style.display = 'none';
+      updateOrderZone(null, null);
+    });
+  }
+}
+
 function renderClientList() {
+  if (!_loaded.clients || !_loaded.orders) { showSpinner('clientList'); return; }
   const clients = getData('clients', []);
   const orders = getData('orders', []);
   const q = document.getElementById('cliSearch').value.toLowerCase();
@@ -1575,6 +1713,7 @@ function markDelivered(id) {
 }
 
 function renderOrderList() {
+  if (!_loaded.orders) { showSpinner('orderList'); return; }
   const orders = getData('orders', []).filter(o => o.status === 'pendiente');
   const container = document.getElementById('orderList');
   if (orders.length === 0) {

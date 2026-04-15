@@ -1715,3 +1715,61 @@ details[open] .recurring-summary::before { content: '▼ '; }
   font-weight: 600;
   margin-top: 0.2rem;
 }
+
+/* ==========================================
+   MODULE LOADING SPINNER
+   ========================================== */
+@keyframes xela-spin {
+  to { transform: rotate(360deg); }
+}
+.mod-spinner {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--sys-border);
+  border-top-color: var(--sys-primary);
+  border-radius: 50%;
+  animation: xela-spin 0.65s linear infinite;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.mod-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2rem 1rem;
+  color: var(--sys-text-muted);
+  font-size: 0.9rem;
+  justify-content: center;
+}
+
+/* ==========================================
+   GOOGLE PLACES AUTOCOMPLETE
+   ========================================== */
+/* Keep Google's suggestions dropdown above modals/sidebars */
+.pac-container {
+  z-index: 9999 !important;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  font-family: var(--font);
+  font-size: 0.9rem;
+}
+.pac-item {
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+.pac-item:hover {
+  background: #f0fdf4;
+}
+.pac-item-selected,
+.pac-item:hover .pac-item-query {
+  color: var(--sys-primary);
+}
+/* Inline hint shown after a Place is selected */
+.places-hint {
+  display: inline-block;
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--sys-green);
+  font-weight: 500;
+}

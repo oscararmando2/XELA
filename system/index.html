@@ -13,7 +13,7 @@
   <meta name="theme-color" content="#2d6a4f" />
   <link rel="stylesheet" href="../css/system.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet CSS loaded lazily in initCRM() to avoid blocking first paint -->
 </head>
 <body>
 
@@ -402,18 +402,11 @@
                   </div>
                   <div class="form-group">
                     <label>Dirección de entrega</label>
-                    <input type="text" id="cliAddress" placeholder="Calle, Colonia, Referencias" />
+                    <input type="text" id="cliAddress" placeholder="Calle, Colonia, Referencias…" autocomplete="street-address" />
+                    <span class="places-hint" id="cliAddressHint" style="display:none;">📍 Dirección verificada — coordenadas capturadas</span>
                   </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label>Latitud (opcional)</label>
-                      <input type="number" id="cliLat" placeholder="19.43" step="0.00001" />
-                    </div>
-                    <div class="form-group">
-                      <label>Longitud (opcional)</label>
-                      <input type="number" id="cliLng" placeholder="-100.35" step="0.00001" />
-                    </div>
-                  </div>
+                  <input type="hidden" id="cliLat" />
+                  <input type="hidden" id="cliLng" />
                   <div class="form-group">
                     <label>Notas / Preferencias</label>
                     <textarea id="cliNotes" placeholder="Notas especiales, preferencias..." rows="2"></textarea>
@@ -449,18 +442,11 @@
                     </div>
                     <div class="form-group">
                       <label>Dirección de entrega</label>
-                      <input type="text" id="orderClientAddress" placeholder="Calle, Colonia, Referencias" />
+                      <input type="text" id="orderClientAddress" placeholder="Calle, Colonia, Referencias…" autocomplete="street-address" />
+                      <span class="places-hint" id="orderAddressHint" style="display:none;">📍 Dirección verificada — coordenadas capturadas</span>
                     </div>
-                    <div class="form-row">
-                      <div class="form-group">
-                        <label>Latitud (opcional)</label>
-                        <input type="number" id="orderClientLat" placeholder="19.43" step="0.00001" />
-                      </div>
-                      <div class="form-group">
-                        <label>Longitud (opcional)</label>
-                        <input type="number" id="orderClientLng" placeholder="-100.35" step="0.00001" />
-                      </div>
-                    </div>
+                    <input type="hidden" id="orderClientLat" />
+                    <input type="hidden" id="orderClientLng" />
                   </div>
 
                   <!-- POS-style product grid -->
@@ -598,28 +584,17 @@
     </div><!-- /main-content -->
   </div><!-- /dashboard -->
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
-  <!-- Firebase SDK (compat) — must load before system.js -->
+  <!-- Firebase SDK (compat) — deferred; firebase-init.js must run before system.js -->
   <!-- Note: Firebase web API keys are public by design; access is controlled by Firestore security rules -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script>
-    firebase.initializeApp({
-      apiKey: "AIzaSyA5orV2cj41j6YZHi7Tn-fX62rM3zOLUfI",
-      authDomain: "xela-8a91d.firebaseapp.com",
-      projectId: "xela-8a91d",
-      storageBucket: "xela-8a91d.firebasestorage.app",
-      messagingSenderId: "1024661076424",
-      appId: "1:1024661076424:web:f889b065e1afb1c2cfe8fd",
-      measurementId: "G-DF38FQW5JX"
-    });
-    var db = firebase.firestore();
-  </script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script defer src="../js/firebase-init.js"></script>
 
-  <script src="../js/system.js"></script>
+  <script defer src="../js/system.js"></script>
 
   <!-- ===================== MODALS ===================== -->
 
