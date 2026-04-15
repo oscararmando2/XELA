@@ -67,11 +67,55 @@ document.querySelectorAll('.producto-card, .info-card, .nota, .stat').forEach(el
   revealObserver.observe(el);
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.revealed').forEach(el => {
-    el.style.opacity = '1';
-    el.style.transform = 'translateY(0)';
-  });
-});
+// ---- Productos horizontal scroll ----
+const CARDS_TO_SCROLL = 3;
 
+function scrollProductos(direction) {
+  const grid = document.querySelector('.productos-grid');
+  if (!grid) return;
+  const firstCard = grid.querySelector('.producto-card');
+  if (!firstCard) return;
+  const cardWidth = firstCard.offsetWidth + 24; // 24 = gap
+  grid.scrollBy({ left: direction * cardWidth * CARDS_TO_SCROLL, behavior: 'smooth' });
+}
 
+(function initProductosIndicator() {
+  const grid = document.querySelector('.productos-grid');
+  const indicator = document.getElementById('productosIndicator');
+  if (!grid || !indicator) return;
+
+  const firstCard = grid.querySelector('.producto-card');
+  if (!firstCard) return;
+
+  const totalCards = grid.querySelectorAll('.producto-card').length;
+  const visibleCount = () => Math.round(grid.offsetWidth / (firstCard.offsetWidth + 24));
+  const dotCount = () => totalCards - visibleCount() + 1;
+
+  function buildDots() {
+    indicator.innerHTML = '';
+    const n = dotCount();
+    for (let i = 0; i < n; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'dot' + (i === 0 ? ' active' : '');
+      indicator.appendChild(dot);
+    }
+  }
+
+  function updateDots() {
+    const dots = indicator.querySelectorAll('.dot');
+    if (!dots.length) return;
+    const cardW = firstCard.offsetWidth + 24;
+    const idx = Math.round(grid.scrollLeft / cardW);
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+  }
+
+  let resizeTimer;
+  function onResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { buildDots(); updateDots(); }, 150);
+  }
+
+  buildDots();
+  grid.addEventListener('scroll', updateDots, { passive: true });
+  window.addEventListener('resize', onResize);
+})();
