@@ -480,9 +480,9 @@ let paymentMethod = 'efectivo';
 const DELIVERY_FEE = 20;
 const FREE_DELIVERY_DOCENAS = 3;
 
-// ---- Delivery zone (Zitácuaro city center, 4 km radius) ----
+// ---- Delivery zone (Zitácuaro city center, 3 km radius) ----
 const ZONE_CENTER = { lat: 19.4333, lng: -100.3667 };
-const ZONE_RADIUS_KM = 4;
+const ZONE_RADIUS_KM = 3;
 const ZONE_EXTRA_FEE = 20;
 
 // ---- CRM order cart ----
@@ -1263,15 +1263,7 @@ function initCRM() {
     }
   });
 
-  // Update zone when new client lat/lng fields are filled
-  ['orderClientLat', 'orderClientLng'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', function() {
-      const lat = parseFloat(document.getElementById('orderClientLat').value);
-      const lng = parseFloat(document.getElementById('orderClientLng').value);
-      updateOrderZone(isNaN(lat) ? null : lat, isNaN(lng) ? null : lng);
-    });
-  });
+  // Zone updates are now driven by Places autocomplete (see initGooglePlaces)
 
   // POS-style product grid for orders
   renderOrderProductGrid();
@@ -1374,6 +1366,9 @@ function initCRM() {
   document.getElementById('startDeliveriesBtn').addEventListener('click', startDeliveries);
   document.getElementById('openGoogleMapsBtn').addEventListener('click', openInGoogleMaps);
 
+  // Load Google Maps Places API for address autocomplete
+  loadGoogleMapsPlaces().then(initGooglePlaces);
+
   renderCRM();
 }
 
@@ -1383,6 +1378,96 @@ function renderCRM() {
   // Update historial if that tab is active
   const histTab = document.querySelector('.crm-tab[data-crm="historial"]');
   if (histTab && histTab.classList.contains('active')) renderHistorialList();
+}
+
+// ---- Google Maps Places API — lazy loader ----
+const MAPS_API_KEY = 'AIzaSyA5orV2cj41j6YZHi7Tn-fX62rM3zOLUfI';
+
+function loadGoogleMapsPlaces() {
+  if (window.google?.maps?.places) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    if (document.getElementById('google-maps-api')) {
+      // Script tag already injected; wait for it to finish loading
+      document.getElementById('google-maps-api').addEventListener('load', resolve);
+      document.getElementById('google-maps-api').addEventListener('error', reject);
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'google-maps-api';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_API_KEY}&libraries=places&language=es&region=MX`;
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = () => { console.warn('Google Maps API failed to load'); resolve(); };
+    document.head.appendChild(script);
+  });
+}
+
+// ---- Google Places Autocomplete for address fields ----
+function initGooglePlaces() {
+  if (!window.google?.maps?.places) return;
+
+  // Bias results to Zitácuaro, Michoacán bounding box
+  const ZITACUARO_BOUNDS = new google.maps.LatLngBounds(
+    new google.maps.LatLng(19.38, -100.43),
+    new google.maps.LatLng(19.49, -100.31)
+  );
+
+  const AC_OPTIONS = {
+    bounds: ZITACUARO_BOUNDS,
+    componentRestrictions: { country: 'mx' },
+    fields: ['formatted_address', 'geometry'],
+    strictBounds: false,
+  };
+
+  // ---- Client registration form ----
+  const cliAddressInput = document.getElementById('cliAddress');
+  if (cliAddressInput && !cliAddressInput.dataset.acInit) {
+    cliAddressInput.dataset.acInit = '1';
+    const acCli = new google.maps.places.Autocomplete(cliAddressInput, AC_OPTIONS);
+    acCli.addListener('place_changed', () => {
+      const place = acCli.getPlace();
+      if (!place?.geometry?.location) return;
+      cliAddressInput.value = place.formatted_address || cliAddressInput.value;
+      document.getElementById('cliLat').value = place.geometry.location.lat();
+      document.getElementById('cliLng').value = place.geometry.location.lng();
+      const hint = document.getElementById('cliAddressHint');
+      if (hint) hint.style.display = 'inline';
+    });
+    // Clear coords if user edits the address manually after autocomplete
+    cliAddressInput.addEventListener('input', () => {
+      document.getElementById('cliLat').value = '';
+      document.getElementById('cliLng').value = '';
+      const hint = document.getElementById('cliAddressHint');
+      if (hint) hint.style.display = 'none';
+    });
+  }
+
+  // ---- New client address in order form ----
+  const orderAddressInput = document.getElementById('orderClientAddress');
+  if (orderAddressInput && !orderAddressInput.dataset.acInit) {
+    orderAddressInput.dataset.acInit = '1';
+    const acOrder = new google.maps.places.Autocomplete(orderAddressInput, AC_OPTIONS);
+    acOrder.addListener('place_changed', () => {
+      const place = acOrder.getPlace();
+      if (!place?.geometry?.location) return;
+      orderAddressInput.value = place.formatted_address || orderAddressInput.value;
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      document.getElementById('orderClientLat').value = lat;
+      document.getElementById('orderClientLng').value = lng;
+      const hint = document.getElementById('orderAddressHint');
+      if (hint) hint.style.display = 'inline';
+      updateOrderZone(lat, lng);
+    });
+    // Clear coords if user edits address manually
+    orderAddressInput.addEventListener('input', () => {
+      document.getElementById('orderClientLat').value = '';
+      document.getElementById('orderClientLng').value = '';
+      const hint = document.getElementById('orderAddressHint');
+      if (hint) hint.style.display = 'none';
+      updateOrderZone(null, null);
+    });
+  }
 }
 
 function renderClientList() {
