@@ -1715,3 +1715,30 @@ details[open] .recurring-summary::before { content: '▼ '; }
   font-weight: 600;
   margin-top: 0.2rem;
 }
+
+/* ==========================================
+   MODULE LOADING SPINNER
+   ========================================== */
+@keyframes xela-spin {
+  to { transform: rotate(360deg); }
+}
+.mod-spinner {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--sys-border);
+  border-top-color: var(--sys-primary);
+  border-radius: 50%;
+  animation: xela-spin 0.65s linear infinite;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.mod-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2rem 1rem;
+  color: var(--sys-text-muted);
+  font-size: 0.9rem;
+  justify-content: center;
+}
