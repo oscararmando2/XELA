@@ -29,7 +29,7 @@ const COLLECTION_MAP = {
   orders:       'pedidos',
   cortes:       'cortes',
 };
-const CONFIG_KEYS = ['initialized', 'corte_last_date'];
+const CONFIG_KEYS = ['corte_last_date'];
 
 // ---- In-memory cache (mirrors Firestore state) ----
 const _cache = {};
@@ -124,85 +124,6 @@ function setData(key, val) {
   batch.commit().catch(e => console.error('Firestore write error [' + colName + ']:', e));
 }
 
-// ---- Inicializar datos de muestra si están vacíos ----
-function initSampleData() {
-  if (getData('initialized', false)) return;
-
-  // Inventario inicial
-  const inventory = [
-    { id: 'masa_maiz',    name: 'Masa de maíz',        qty: 6.25, unit: 'kg',     threshold: 2.5, cost: 12 },
-    { id: 'moringa_polvo', name: 'Moringa en polvo',   qty: 0.875, unit: 'kg',     threshold: 0.5,  cost: 180 },
-    { id: 'nopal_fresco',  name: 'Nopal fresco',       qty: 2,     unit: 'kg',     threshold: 1.25, cost: 15 },
-    { id: 'chile_pasilla', name: 'Chile pasilla seco', qty: 1.5,  unit: 'docena', threshold: 2,   cost: 80 },
-    { id: 'cal',           name: 'Cal',                qty: 10,   unit: 'docena', threshold: 3,   cost: 5 },
-    { id: 'gas',           name: 'Gas LP',             qty: 1,    unit: 'litro',  threshold: 1,   cost: 300 },
-    { id: 'agua_medio',    name: 'Agua ½ litro',       qty: 12,   unit: 'litro',  threshold: 5,   cost: 10,  litersPerUnit: 0.5 },
-    { id: 'agua_litro',    name: 'Agua 1 litro',       qty: 20,   unit: 'litro',  threshold: 5,   cost: 15,  litersPerUnit: 1 },
-    { id: 'salsa',         name: 'Salsa',              qty: 24,   unit: 'pieza',  threshold: 8,   cost: 12 },
-  ];
-  setData('inventory', inventory);
-
-  // Transacciones de muestra (últimos 7 días)
-  const today = new Date();
-  const transactions = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const ds = localDateStr(d);
-    transactions.push(
-      { id: uid(), date: ds, type: 'ingreso', desc: 'Ventas del día', amount: Math.floor(300 + Math.random() * 400) },
-      { id: uid(), date: ds, type: 'gasto',   desc: 'Compra de masa', amount: Math.floor(80 + Math.random() * 60) }
-    );
-    if (i % 3 === 0) transactions.push({ id: uid(), date: ds, type: 'gasto', desc: 'Sueldo repartidor', amount: 200 });
-  }
-  setData('transactions', transactions);
-
-  // Ventas de muestra
-  const sales = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const ds = localDateStr(d);
-    PRODUCTS.forEach(p => {
-      const qty = parseFloat((1 + Math.random() * 4).toFixed(0));
-      sales.push({ id: uid(), date: ds, time: '09:30', productId: p.id, productName: p.name, qty, price: p.price, total: qty * p.price, payment: 'efectivo' });
-    });
-  }
-  setData('sales', sales);
-
-  // Clientes de muestra
-  const clients = [
-    { id: uid(), name: 'María González', phone: '4431234567', address: 'Calle Morelos 45, Col. Centro', lat: 19.4336, lng: -100.3562, notes: 'Le gusta la moringa' },
-    { id: uid(), name: 'Juan Pérez',      phone: '4437654321', address: 'Av. Revolución 12, Col. Las Flores', lat: 19.4310, lng: -100.3590, notes: '' },
-    { id: uid(), name: 'Rosa Martínez',   phone: '4439876543', address: 'Privada Hidalgo 8, Col. Lomas', lat: 19.4355, lng: -100.3540, notes: 'Pide solo nopal' },
-  ];
-  setData('clients', clients);
-
-  // Pedidos de muestra
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tmStr = localDateStr(tomorrow);
-  const orders = [
-    { id: uid(), clientId: clients[0].id, clientName: clients[0].name, clientAddress: clients[0].address,
-      items: [
-        { productId: 'moringa', productName: 'Tortilla de Moringa', qty: 2, price: 30, total: 60 },
-        { productId: 'maiz', productName: 'Tortilla de Maíz', qty: 1, price: 15, total: 15 },
-      ], subtotal: 75, deliveryFee: 0, total: 75, date: tmStr, status: 'pendiente', notes: '' },
-    { id: uid(), clientId: clients[1].id, clientName: clients[1].name, clientAddress: clients[1].address,
-      items: [
-        { productId: 'maiz', productName: 'Tortilla de Maíz', qty: 3, price: 15, total: 45 },
-      ], subtotal: 45, deliveryFee: 0, total: 45, date: tmStr, status: 'pendiente', notes: '' },
-    { id: uid(), clientId: clients[2].id, clientName: clients[2].name, clientAddress: clients[2].address,
-      items: [
-        { productId: 'nopal', productName: 'Tortilla de Nopal', qty: 1, price: 25, total: 25 },
-        { productId: 'pasilla', productName: 'Tortilla de Chile Pasilla', qty: 2, price: 25, total: 50 },
-      ], subtotal: 75, deliveryFee: 0, total: 75, date: tmStr, status: 'pendiente', notes: '' },
-  ];
-  setData('orders', orders);
-
-  setData('initialized', true);
-}
-
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
 // ---- HTML escape to prevent XSS ----
@@ -280,9 +201,8 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
     document.getElementById('dashboard').style.display = 'flex';
     applyRoleAccess(role);
     initDashboard();
-    // Start Firestore sync in background; init sample data only after config is confirmed empty
+    // Start Firestore real-time listeners
     startFirestoreSync();
-    _readyPromises.config.then(() => initSampleData());
   } else {
     err.style.display = 'block';
     document.getElementById('loginPassword').value = '';
@@ -308,6 +228,9 @@ function applyRoleAccess(role) {
       item.style.display = 'none';
     }
   });
+  // Show danger zone only for control role
+  const resetSection = document.getElementById('resetDataSection');
+  if (resetSection) resetSection.style.display = role === 'control' ? '' : 'none';
   // Switch to the first allowed module
   const defaultMod = allowed[0] || 'pos';
   switchModule(defaultMod);
@@ -2178,6 +2101,41 @@ function generateReport() {
   document.getElementById('downloadPdfBtn').onclick = downloadReportPDF;
 
   toast('Reporte generado ✅');
+}
+
+// ==========================================
+// ADMIN: RESETEAR TODOS LOS DATOS
+// ==========================================
+async function resetAllData() {
+  if (currentRole !== 'control') { toast('Solo el Dueño puede realizar esta acción', 'error'); return; }
+  if (!confirm('⚠️ ¿Borrar TODOS los datos de Firestore?\n\nEsto eliminará permanentemente:\n• Ventas\n• Gastos\n• Inventario\n• Clientes\n• Pedidos\n• Cortes de caja\n\nEsta acción NO se puede deshacer.')) return;
+  if (!confirm('⚠️ CONFIRMACIÓN FINAL\n\n¿Estás completamente seguro? Todos los datos se perderán para siempre.')) return;
+
+  const btn = document.getElementById('resetDataBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Borrando…'; }
+  toast('Borrando todos los datos…', 'warning');
+
+  try {
+    for (const colName of Object.values(COLLECTION_MAP)) {
+      const snapshot = await db.collection(colName).get();
+      if (!snapshot.empty) {
+        // Firestore batches support up to 500 ops; chunk if needed
+        const CHUNK = 400;
+        for (let i = 0; i < snapshot.docs.length; i += CHUNK) {
+          const batch = db.batch();
+          snapshot.docs.slice(i, i + CHUNK).forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        }
+      }
+    }
+    await db.collection('config').doc('settings').delete();
+    toast('✅ Todos los datos han sido borrados. La app comienza desde cero.', 'success');
+  } catch (err) {
+    console.error('Error al borrar datos:', err);
+    toast('Error al borrar datos: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🗑️ Borrar Todos los Datos'; }
+  }
 }
 
 function downloadReportPDF() {
