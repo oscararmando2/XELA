@@ -451,6 +451,16 @@
                       <label>Dirección de entrega</label>
                       <input type="text" id="orderClientAddress" placeholder="Calle, Colonia, Referencias" />
                     </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Latitud (opcional)</label>
+                        <input type="number" id="orderClientLat" placeholder="19.43" step="0.00001" />
+                      </div>
+                      <div class="form-group">
+                        <label>Longitud (opcional)</label>
+                        <input type="number" id="orderClientLng" placeholder="-100.35" step="0.00001" />
+                      </div>
+                    </div>
                   </div>
 
                   <!-- POS-style product grid -->
@@ -470,6 +480,7 @@
                       <span id="orderDeliveryFeeLabel">🚚 Envío:</span>
                       <span id="orderDeliveryFeeAmt"></span>
                     </div>
+                    <div id="orderZoneWarning" class="order-zone-warning" style="display:none;">⚠️ Fuera de zona — envío adicional $20</div>
                     <div class="order-running-main">
                       <span>Total del pedido:</span>
                       <span id="orderRunningTotal" class="running-total-amount">$0.00</span>
