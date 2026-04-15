@@ -578,6 +578,12 @@
             <p>Selecciona un rango de fechas y haz clic en "Generar Reporte" para ver el resumen.</p>
             <p class="muted">Puedes reportar desde un solo día hasta varios meses.</p>
           </div>
+          <!-- Zona de Peligro — solo visible para rol Control -->
+          <div class="danger-zone" id="resetDataSection">
+            <h3 class="danger-zone-title">⚠️ Zona de Peligro</h3>
+            <p class="danger-zone-desc">Esta acción borra permanentemente <strong>todos los datos</strong> de Firestore (ventas, gastos, inventario, clientes, pedidos y cortes). No se puede deshacer.</p>
+            <button id="resetDataBtn" class="btn-danger-reset" onclick="resetAllData()">🗑️ Borrar Todos los Datos</button>
+          </div>
         </section>
 
       </div><!-- /modules-wrap -->

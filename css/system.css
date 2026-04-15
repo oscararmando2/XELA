@@ -1796,3 +1796,38 @@ details[open] .recurring-summary::before { content: '▼ '; }
   color: var(--sys-green);
   font-weight: 500;
 }
+
+/* ==========================================
+   ZONA DE PELIGRO — RESET DE DATOS
+   ========================================== */
+.danger-zone {
+  margin-top: 2rem;
+  padding: 1.25rem 1.5rem;
+  border: 2px solid #f87171;
+  border-radius: 12px;
+  background: #fff5f5;
+}
+.danger-zone-title {
+  color: #b91c1c;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+}
+.danger-zone-desc {
+  color: #7f1d1d;
+  font-size: 0.875rem;
+  margin: 0 0 1rem 0;
+}
+.btn-danger-reset {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-danger-reset:hover { background: #b91c1c; }
+.btn-danger-reset:disabled { opacity: 0.6; cursor: not-allowed; }

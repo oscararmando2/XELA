@@ -228,6 +228,9 @@ function applyRoleAccess(role) {
       item.style.display = 'none';
     }
   });
+  // Show danger zone only for control role
+  const resetSection = document.getElementById('resetDataSection');
+  if (resetSection) resetSection.style.display = role === 'control' ? '' : 'none';
   // Switch to the first allowed module
   const defaultMod = allowed[0] || 'pos';
   switchModule(defaultMod);
@@ -2098,6 +2101,41 @@ function generateReport() {
   document.getElementById('downloadPdfBtn').onclick = downloadReportPDF;
 
   toast('Reporte generado ✅');
+}
+
+// ==========================================
+// ADMIN: RESETEAR TODOS LOS DATOS
+// ==========================================
+async function resetAllData() {
+  if (currentRole !== 'control') { toast('Solo el Dueño puede realizar esta acción', 'error'); return; }
+  if (!confirm('⚠️ ¿Borrar TODOS los datos de Firestore?\n\nEsto eliminará permanentemente:\n• Ventas\n• Gastos\n• Inventario\n• Clientes\n• Pedidos\n• Cortes de caja\n\nEsta acción NO se puede deshacer.')) return;
+  if (!confirm('⚠️ CONFIRMACIÓN FINAL\n\n¿Estás completamente seguro? Todos los datos se perderán para siempre.')) return;
+
+  const btn = document.getElementById('resetDataBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Borrando…'; }
+  toast('Borrando todos los datos…', 'warning');
+
+  try {
+    for (const colName of Object.values(COLLECTION_MAP)) {
+      const snapshot = await db.collection(colName).get();
+      if (!snapshot.empty) {
+        // Firestore batches support up to 500 ops; chunk if needed
+        const CHUNK = 400;
+        for (let i = 0; i < snapshot.docs.length; i += CHUNK) {
+          const batch = db.batch();
+          snapshot.docs.slice(i, i + CHUNK).forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        }
+      }
+    }
+    await db.collection('config').doc('settings').delete();
+    toast('✅ Todos los datos han sido borrados. La app comienza desde cero.', 'success');
+  } catch (err) {
+    console.error('Error al borrar datos:', err);
+    toast('Error al borrar datos: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🗑️ Borrar Todos los Datos'; }
+  }
 }
 
 function downloadReportPDF() {
