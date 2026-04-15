@@ -2336,9 +2336,9 @@ function downloadReportPDF() {
 // FCM — PUSH NOTIFICATIONS
 // ==========================================
 
-// Replace with the VAPID public key from Firebase Console >
+// VAPID public key from Firebase Console >
 // Project Settings > Cloud Messaging > Web Push certificates.
-const FCM_VAPID_KEY = '';
+const FCM_VAPID_KEY = 'BCXgc4b0uTff3ZabmF7Ev7eSeV0r151SKUxv5sb-ZlX1Gl4A5-dtexrywrJrCCngyleRgXBLvfbMEBGtNuFiRVU1';
 
 async function initFCM() {
   if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
