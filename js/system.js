@@ -1381,7 +1381,7 @@ function renderCRM() {
 }
 
 // ---- Google Maps Places API — lazy loader ----
-const MAPS_API_KEY = 'AIzaSyA5orV2cj41j6YZHi7Tn-fX62rM3zOLUfI';
+const MAPS_API_KEY = 'AIzaSyCwpbualC_jZe2tCwJB8dna0C01o10GqgI';
 
 function loadGoogleMapsPlaces() {
   if (window.google?.maps?.places) return Promise.resolve();
