@@ -449,6 +449,11 @@ let paymentMethod = 'efectivo';
 const DELIVERY_FEE = 20;
 const FREE_DELIVERY_DOCENAS = 3;
 
+// ---- Delivery zone (Zitácuaro city center, 4 km radius) ----
+const ZONE_CENTER = { lat: 19.4333, lng: -100.3667 };
+const ZONE_RADIUS_KM = 4;
+const ZONE_EXTRA_FEE = 20;
+
 // ---- CRM order cart ----
 let _orderCart = {};
 
@@ -553,6 +558,27 @@ function calcDeliveryFee(items) {
   }
   const freeDelivery = docenas >= FREE_DELIVERY_DOCENAS;
   return { docenas, freeDelivery, deliveryFee: freeDelivery ? 0 : DELIVERY_FEE };
+}
+
+// Check if coordinates fall inside the delivery zone (haversineDistance defined later, but hoisted)
+function isInsideZone(lat, lng) {
+  if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return true;
+  return haversineDistance(ZONE_CENTER, { lat: parseFloat(lat), lng: parseFloat(lng) }) <= ZONE_RADIUS_KM;
+}
+
+// ---- CRM zone tracking for the current order form ----
+let _orderClientLat = null;
+let _orderClientLng = null;
+
+function updateOrderZone(lat, lng) {
+  _orderClientLat = (lat != null && !isNaN(lat)) ? parseFloat(lat) : null;
+  _orderClientLng = (lng != null && !isNaN(lng)) ? parseFloat(lng) : null;
+  const warning = document.getElementById('orderZoneWarning');
+  if (warning) {
+    const inside = isInsideZone(_orderClientLat, _orderClientLng);
+    warning.style.display = (_orderClientLat != null && _orderClientLng != null && !inside) ? 'block' : 'none';
+  }
+  renderOrderCart();
 }
 
 // Returns delivery fee for POS (0 when delivery toggle is off)
@@ -1163,6 +1189,7 @@ function initCRM() {
       phoneResult.style.display = 'none';
       newClientFields.style.display = 'none';
       orderSelectedClient = null;
+      updateOrderZone(null, null);
       return;
     }
     const clients = getData('clients', []);
@@ -1173,13 +1200,25 @@ function initCRM() {
       phoneResult.className = 'phone-search-result found';
       phoneResult.innerHTML = `<span class="phone-found-icon">✅</span> <strong>${found.name}</strong>${found.address ? ` — 📍 ${found.address}` : ''}`;
       newClientFields.style.display = 'none';
+      updateOrderZone(found.lat, found.lng);
     } else {
       orderSelectedClient = null;
       phoneResult.style.display = 'block';
       phoneResult.className = 'phone-search-result not-found';
       phoneResult.innerHTML = '🆕 Cliente nuevo — completa los datos:';
       newClientFields.style.display = 'block';
+      updateOrderZone(null, null);
     }
+  });
+
+  // Update zone when new client lat/lng fields are filled
+  ['orderClientLat', 'orderClientLng'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', function() {
+      const lat = parseFloat(document.getElementById('orderClientLat').value);
+      const lng = parseFloat(document.getElementById('orderClientLng').value);
+      updateOrderZone(isNaN(lat) ? null : lat, isNaN(lng) ? null : lng);
+    });
   });
 
   // POS-style product grid for orders
@@ -1234,7 +1273,9 @@ function initCRM() {
       const name = document.getElementById('orderClientName').value.trim();
       const address = document.getElementById('orderClientAddress').value.trim();
       if (!name) { toast('Ingresa el nombre del cliente nuevo', 'warning'); return; }
-      client = { id: uid(), name, phone, address, lat: null, lng: null, notes: '' };
+      const newLat = parseFloat(document.getElementById('orderClientLat')?.value) || null;
+      const newLng = parseFloat(document.getElementById('orderClientLng')?.value) || null;
+      client = { id: uid(), name, phone, address, lat: newLat || null, lng: newLng || null, notes: '' };
       const clients = getData('clients', []);
       clients.push(client);
       setData('clients', clients);
@@ -1243,16 +1284,23 @@ function initCRM() {
 
     const subtotal = items.reduce((a, i) => a + i.total, 0);
     const { freeDelivery, deliveryFee } = calcDeliveryFee(items);
-    const orderTotal = subtotal + deliveryFee;
+    const outOfZone = !isInsideZone(client.lat, client.lng) && client.lat != null && client.lng != null;
+    const zoneExtra = outOfZone ? ZONE_EXTRA_FEE : 0;
+    const totalDeliveryFee = deliveryFee + zoneExtra;
+    const orderTotal = subtotal + totalDeliveryFee;
     const orders = getData('orders', []);
     orders.push({
       id: uid(), clientId: client.id, clientName: client.name, clientAddress: client.address || '',
-      items, subtotal, deliveryFee, total: orderTotal, date, status: 'pendiente',
+      items, subtotal, deliveryFee: totalDeliveryFee, outOfZone: outOfZone || false, total: orderTotal, date, status: 'pendiente',
       notes: document.getElementById('orderNotes').value.trim(),
     });
     setData('orders', orders);
     this.reset();
     orderSelectedClient = null;
+    _orderClientLat = null;
+    _orderClientLng = null;
+    const zoneWarning = document.getElementById('orderZoneWarning');
+    if (zoneWarning) zoneWarning.style.display = 'none';
     phoneResult.style.display = 'none';
     newClientFields.style.display = 'none';
     // Reset cart
@@ -1262,8 +1310,9 @@ function initCRM() {
     // Reset date to today
     document.getElementById('orderDate').value = today();
     document.getElementById('customDateWrap').style.display = 'none';
-    const deliveryInfo = freeDelivery ? ' — Envío gratis 🎉' : ` — 🚚 Envío $${DELIVERY_FEE}`;
-    toast(`Pedido registrado: ${fmt(orderTotal)}${deliveryInfo} ✅`);
+    const deliveryInfo = freeDelivery && !outOfZone ? ' — Envío gratis 🎉' : ` — 🚚 Envío $${totalDeliveryFee}`;
+    const zoneInfo = outOfZone ? ' ⚠️ Fuera de zona' : '';
+    toast(`Pedido registrado: ${fmt(orderTotal)}${deliveryInfo}${zoneInfo} ✅`);
     renderCRM();
   });
 
@@ -1491,14 +1540,17 @@ function renderOrderCart() {
   }, 0);
 
   const { freeDelivery, deliveryFee } = calcDeliveryFee(entries);
-  const total = subtotal + deliveryFee;
+  const outOfZone = !isInsideZone(_orderClientLat, _orderClientLng) && _orderClientLat != null && _orderClientLng != null;
+  const zoneExtra = outOfZone ? ZONE_EXTRA_FEE : 0;
+  const totalDeliveryFee = deliveryFee + zoneExtra;
+  const total = subtotal + totalDeliveryFee;
 
   if (deliveryRow) {
     deliveryRow.style.display = 'flex';
-    if (freeDelivery) {
+    if (freeDelivery && !outOfZone) {
       if (deliveryAmt) { deliveryAmt.textContent = 'Envío gratis 🎉'; deliveryAmt.style.color = 'var(--sys-green)'; }
     } else {
-      if (deliveryAmt) { deliveryAmt.textContent = fmt(deliveryFee); deliveryAmt.style.color = 'var(--sys-orange)'; }
+      if (deliveryAmt) { deliveryAmt.textContent = fmt(totalDeliveryFee); deliveryAmt.style.color = 'var(--sys-orange)'; }
     }
   }
   runningTotal.textContent = fmt(total);
@@ -1541,6 +1593,7 @@ function renderOrderList() {
     const deliveryHtml = o.deliveryFee > 0
       ? `<div class="order-detail" style="color:var(--sys-orange)">🚚 Envío: ${fmt(o.deliveryFee)}</div>`
       : (o.subtotal !== undefined ? `<div class="order-detail" style="color:var(--sys-green)">🚚 Envío gratis 🎉</div>` : '');
+    const zoneHtml = o.outOfZone ? `<div class="order-zone-badge">⚠️ Fuera de zona — envío adicional $20</div>` : '';
     return `<div class="order-card-new">
       <div class="order-card-body">
         <div class="order-client-name">👤 ${esc(o.clientName)}</div>
@@ -1548,6 +1601,7 @@ function renderOrderList() {
         <div class="order-detail">📅 Entrega: ${o.date}</div>
         <div class="order-products-list">${productsHtml}</div>
         ${deliveryHtml}
+        ${zoneHtml}
         <div class="order-total-line">Total: ${fmt(orderTotal)}</div>
         ${o.notes ? `<div class="order-detail order-notes-text">${esc(o.notes)}</div>` : ''}
       </div>
@@ -1628,6 +1682,7 @@ function renderHistorialList() {
     const deliveryHtml = o.deliveryFee > 0
       ? `<div class="order-detail" style="color:var(--sys-orange)">🚚 Envío: ${fmt(o.deliveryFee)}</div>`
       : (o.subtotal !== undefined ? `<div class="order-detail" style="color:var(--sys-green)">🚚 Envío gratis 🎉</div>` : '');
+    const zoneHtml = o.outOfZone ? `<div class="order-zone-badge">⚠️ Fuera de zona</div>` : '';
     return `<div class="order-card-new ${isCancelled ? 'order-card-cancelled' : ''}">
       <div class="order-card-body">
         <div class="order-card-hist-header">
@@ -1638,6 +1693,7 @@ function renderHistorialList() {
         <div class="order-detail">📅 ${o.date}</div>
         <div class="order-products-list">${productsHtml}</div>
         ${deliveryHtml}
+        ${zoneHtml}
         <div class="order-total-line">Total: ${fmt(orderTotal)}</div>
         ${cancelInfo}
         ${o.notes ? `<div class="order-detail order-notes-text">"${esc(o.notes)}"</div>` : ''}
@@ -1656,6 +1712,16 @@ function initMap() {
     attribution: '© OpenStreetMap contributors',
     maxZoom: 19,
   }).addTo(deliveryMap);
+
+  // Draw delivery zone circle (persistent — not in deliveryMarkers)
+  L.circle([ZONE_CENTER.lat, ZONE_CENTER.lng], {
+    radius: ZONE_RADIUS_KM * 1000,
+    color: '#38A169',
+    fillColor: '#38A169',
+    fillOpacity: 0.08,
+    weight: 2,
+    dashArray: '6, 4',
+  }).addTo(deliveryMap).bindPopup(`<strong>Zona de cobertura</strong><br/>Radio: ${ZONE_RADIUS_KM} km<br/>Fuera de esta zona aplica envío adicional $${ZONE_EXTRA_FEE}`);
 
   // Click to get coordinates
   deliveryMap.on('click', function(e) {
@@ -1732,14 +1798,17 @@ function loadRoute() {
   optimizedStops.forEach((s, i) => {
     s.num = i + 1;
     const isDelivered = s.order.status === 'entregado';
+    const inZone = isInsideZone(s.client.lat, s.client.lng);
+    const pinColor = inZone ? '#38A169' : '#DD6B20';
     const icon = L.divIcon({
-      html: `<div style="background:${isDelivered ? '#38A169' : '#DD6B20'};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);">${s.num}</div>`,
+      html: `<div style="background:${pinColor};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);">${isDelivered ? '✓' : s.num}</div>`,
       className: '', iconSize: [28, 28], iconAnchor: [14, 14],
     });
     const marker = L.marker([s.client.lat, s.client.lng], { icon }).addTo(deliveryMap);
     const productsHtml = (s.order.items || [{ productName: s.order.productName, qty: s.order.qty }])
       .map(it => `${(it.productName || '').replace('Tortilla de ', '')}: ${it.qty} doc.`).join('<br/>');
-    marker.bindPopup(`<strong>${s.num}. ${s.client.name}</strong><br/>${productsHtml}<br/>📍 ${s.client.address || ''}<br/><span style="color:${isDelivered ? 'green' : 'orange'}">${s.order.status}</span>`);
+    const zoneLabel = inZone ? '<span style="color:green">✅ Dentro de zona</span>' : '<span style="color:orange">⚠️ Fuera de zona</span>';
+    marker.bindPopup(`<strong>${s.num}. ${s.client.name}</strong><br/>${productsHtml}<br/>📍 ${s.client.address || ''}<br/>${zoneLabel}<br/><span style="color:${isDelivered ? 'green' : 'gray'}">${s.order.status}</span>`);
     deliveryMarkers.push(marker);
   });
 
