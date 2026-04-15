@@ -145,7 +145,9 @@
       <p class="section-label center">Nuestros Productos</p>
       <h2 class="center">Variedades de Tortilla</h2>
       <p class="section-subtitle center">Elaboradas diariamente con ingredientes frescos y naturales</p>
-      <div class="productos-grid">
+      <div class="productos-scroll-wrapper">
+        <button class="productos-arrow productos-arrow-prev" aria-label="Anterior" onclick="scrollProductos(-1)">&#8249;</button>
+        <div class="productos-grid">
 
         <div class="producto-card">
           <div class="producto-icon" style="background:#FFF3CD;">🌽</div>
@@ -226,7 +228,10 @@
           <a href="https://wa.me/5214431234567?text=Quiero%20pedir%20salsa%20artesanal" class="btn btn-sm btn-whatsapp" target="_blank">Pedir</a>
         </div>
 
+        </div>
+        <button class="productos-arrow productos-arrow-next" aria-label="Siguiente" onclick="scrollProductos(1)">&#8250;</button>
       </div>
+      <div class="productos-scroll-indicator" id="productosIndicator"></div>
     </div>
   </section>
 

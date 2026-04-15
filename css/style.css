@@ -427,12 +427,32 @@ p { margin-bottom: 1rem; }
   padding: 6rem 0;
   background: var(--color-bg-alt);
 }
+.productos-scroll-wrapper {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
 .productos-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  display: flex;
+  flex-direction: row;
   gap: 1.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding: 1rem 0.25rem 1.5rem;
+  flex: 1;
+  min-width: 0;
+  /* hide scrollbar */
+  scrollbar-width: none;
+}
+.productos-grid::-webkit-scrollbar {
+  display: none;
 }
 .producto-card {
+  flex: 0 0 300px;
+  width: 300px;
+  scroll-snap-align: start;
   background: #fff;
   border-radius: var(--radius-lg);
   padding: 2rem 1.5rem;
@@ -500,6 +520,54 @@ p { margin-bottom: 1rem; }
   font-size: 1rem;
   font-weight: 400;
   color: var(--color-text-light);
+}
+.productos-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--color-primary);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), box-shadow var(--transition);
+  padding: 0;
+}
+.productos-arrow:hover {
+  background: var(--color-accent);
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+}
+.productos-arrow-prev { left: -20px; }
+.productos-arrow-next { right: -20px; }
+.productos-scroll-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.productos-scroll-indicator .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  opacity: 0.3;
+  transition: opacity 0.3s;
+}
+.productos-scroll-indicator .dot.active {
+  opacity: 1;
+}
+@media (max-width: 768px) {
+  .productos-arrow { display: none; }
 }
 
 /* ==========================================
