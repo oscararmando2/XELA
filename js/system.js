@@ -480,9 +480,9 @@ let paymentMethod = 'efectivo';
 const DELIVERY_FEE = 20;
 const FREE_DELIVERY_DOCENAS = 3;
 
-// ---- Delivery zone (Zitácuaro city center, 3 km radius) ----
+// ---- Delivery zone (Zitácuaro city center, 2 km radius) ----
 const ZONE_CENTER = { lat: 19.4333, lng: -100.3667 };
-const ZONE_RADIUS_KM = 3;
+const ZONE_RADIUS_KM = 2;
 const ZONE_EXTRA_FEE = 20;
 
 // ---- CRM order cart ----
