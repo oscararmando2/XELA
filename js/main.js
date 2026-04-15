@@ -68,11 +68,15 @@ document.querySelectorAll('.producto-card, .info-card, .nota, .stat').forEach(el
 });
 
 // ---- Productos horizontal scroll ----
+const CARDS_TO_SCROLL = 3;
+
 function scrollProductos(direction) {
   const grid = document.querySelector('.productos-grid');
   if (!grid) return;
-  const cardWidth = grid.querySelector('.producto-card').offsetWidth + 24; // 24 = gap
-  grid.scrollBy({ left: direction * cardWidth * 3, behavior: 'smooth' });
+  const firstCard = grid.querySelector('.producto-card');
+  if (!firstCard) return;
+  const cardWidth = firstCard.offsetWidth + 24; // 24 = gap
+  grid.scrollBy({ left: direction * cardWidth * CARDS_TO_SCROLL, behavior: 'smooth' });
 }
 
 (function initProductosIndicator() {
@@ -80,9 +84,11 @@ function scrollProductos(direction) {
   const indicator = document.getElementById('productosIndicator');
   if (!grid || !indicator) return;
 
-  const cards = grid.querySelectorAll('.producto-card');
-  const totalCards = cards.length;
-  const visibleCount = () => Math.round(grid.offsetWidth / (grid.querySelector('.producto-card').offsetWidth + 24));
+  const firstCard = grid.querySelector('.producto-card');
+  if (!firstCard) return;
+
+  const totalCards = grid.querySelectorAll('.producto-card').length;
+  const visibleCount = () => Math.round(grid.offsetWidth / (firstCard.offsetWidth + 24));
   const dotCount = () => totalCards - visibleCount() + 1;
 
   function buildDots() {
@@ -98,12 +104,18 @@ function scrollProductos(direction) {
   function updateDots() {
     const dots = indicator.querySelectorAll('.dot');
     if (!dots.length) return;
-    const cardW = grid.querySelector('.producto-card').offsetWidth + 24;
+    const cardW = firstCard.offsetWidth + 24;
     const idx = Math.round(grid.scrollLeft / cardW);
     dots.forEach((d, i) => d.classList.toggle('active', i === idx));
   }
 
+  let resizeTimer;
+  function onResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { buildDots(); updateDots(); }, 150);
+  }
+
   buildDots();
   grid.addEventListener('scroll', updateDots, { passive: true });
-  window.addEventListener('resize', () => { buildDots(); updateDots(); });
+  window.addEventListener('resize', onResize);
 })();
