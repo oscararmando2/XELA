@@ -75,9 +75,14 @@ const _loaded = {};
 // ---- Firestore ready tracking (resolves after first snapshot per collection) ----
 const _readyResolvers = {};
 const _readyPromises = {};
-[...Object.keys(COLLECTION_MAP), 'config'].forEach(k => {
+[...Object.keys(COLLECTION_MAP), 'config', 'todaySales', 'todayTransactions'].forEach(k => {
   _readyPromises[k] = new Promise(r => { _readyResolvers[k] = r; });
 });
+
+// ---- Today-filtered listener handles (for cleanup on date change) ----
+let _todayListenerDate = null;
+let _todayUnsubSales = null;
+let _todayUnsubTx = null;
 
 // ---- Start real-time Firestore listeners (called after login, runs in background) ----
 function startFirestoreSync() {
@@ -106,6 +111,44 @@ function startFirestoreSync() {
     _loaded['config'] = true;
     if (_readyResolvers['config']) { _readyResolvers['config'](); delete _readyResolvers['config']; }
   });
+
+  startTodayListeners();
+}
+
+// ---- Today-filtered Firestore listeners for fast Resumen loading ----
+function startTodayListeners() {
+  const todayStr = today();
+  if (_todayListenerDate === todayStr) return; // already subscribed for today
+
+  if (_todayUnsubSales) { _todayUnsubSales(); _todayUnsubSales = null; }
+  if (_todayUnsubTx)    { _todayUnsubTx();    _todayUnsubTx    = null; }
+  _todayListenerDate = todayStr;
+
+  _todayUnsubSales = db.collection('ventas').where('date', '==', todayStr).onSnapshot(snapshot => {
+    _cache['todaySales'] = [];
+    snapshot.forEach(doc => _cache['todaySales'].push(doc.data()));
+    _loaded['todaySales'] = true;
+    if (_readyResolvers['todaySales']) { _readyResolvers['todaySales'](); delete _readyResolvers['todaySales']; }
+    _refreshUI('todaySales');
+  }, err => {
+    console.error('Firestore error [ventas/today]:', err);
+    if (!_cache['todaySales']) _cache['todaySales'] = [];
+    _loaded['todaySales'] = true;
+    if (_readyResolvers['todaySales']) { _readyResolvers['todaySales'](); delete _readyResolvers['todaySales']; }
+  });
+
+  _todayUnsubTx = db.collection('gastos').where('date', '==', todayStr).onSnapshot(snapshot => {
+    _cache['todayTransactions'] = [];
+    snapshot.forEach(doc => _cache['todayTransactions'].push(doc.data()));
+    _loaded['todayTransactions'] = true;
+    if (_readyResolvers['todayTransactions']) { _readyResolvers['todayTransactions'](); delete _readyResolvers['todayTransactions']; }
+    _refreshUI('todayTransactions');
+  }, err => {
+    console.error('Firestore error [gastos/today]:', err);
+    if (!_cache['todayTransactions']) _cache['todayTransactions'] = [];
+    _loaded['todayTransactions'] = true;
+    if (_readyResolvers['todayTransactions']) { _readyResolvers['todayTransactions'](); delete _readyResolvers['todayTransactions']; }
+  });
 }
 
 // ---- Re-render UI when Firestore data changes from another device ----
@@ -118,6 +161,10 @@ function _refreshUI(key) {
       case 'sales':
         renderResumen(); renderSalesToday(); renderContador(); break;
       case 'transactions':
+        renderResumen(); renderContador(); break;
+      case 'todaySales':
+        renderResumen(); renderSalesToday(); renderContador(); break;
+      case 'todayTransactions':
         renderResumen(); renderContador(); break;
       case 'inventory':
         renderInventario(); updateLowStockBadge(); renderProductButtons(); break;
@@ -356,7 +403,14 @@ function switchModule(mod) {
 function initResumen() { renderResumen(); }
 
 function renderResumen() {
-  if (!_loaded.sales || !_loaded.transactions) {
+  // If the date has changed (e.g. app left open overnight), restart today-filtered listeners.
+  // Keep existing cached data visible until the new snapshot arrives (avoids spinner flash).
+  if (_todayListenerDate && _todayListenerDate !== today()) {
+    startTodayListeners();
+  }
+
+  // Wait only for today's filtered data — loads much faster than all historical data
+  if (!_loaded.todaySales || !_loaded.todayTransactions) {
     ['sum-ingresos', 'sum-gastos', 'sum-caja', 'sum-utilidad', 'sum-equilibrio', 'sum-top-product'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = '<span class="mod-spinner"></span>';
@@ -365,22 +419,14 @@ function renderResumen() {
     showSpinner('recentTransList');
     return;
   }
-  const todayStr = today();
-  const sales = getData('sales', []);
-  const transactions = getData('transactions', []);
 
-  const todaySales = sales.filter(s => s.date === todayStr);
-  const todayTx = transactions.filter(t => t.date === todayStr);
+  // Today's data comes directly from filtered Firestore queries — no client-side filtering needed
+  const todaySales = getData('todaySales', []);
+  const todayTx    = getData('todayTransactions', []);
 
   const ingresos = todaySales.reduce((a, s) => a + s.total, 0) +
                    todayTx.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
   const gastos = todayTx.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
-
-  // Effective cash = all-time ingresos - all-time gastos
-  const allIngresos = sales.reduce((a, s) => a + s.total, 0) +
-                      transactions.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
-  const allGastos = transactions.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
-  const caja = allIngresos - allGastos;
 
   const utilidad = ingresos - gastos;
 
@@ -392,19 +438,37 @@ function renderResumen() {
 
   document.getElementById('sum-ingresos').textContent = fmt(ingresos);
   document.getElementById('sum-gastos').textContent = fmt(gastos);
-  document.getElementById('sum-caja').textContent = fmt(caja);
   document.getElementById('sum-utilidad').textContent = fmt(utilidad);
   document.getElementById('sum-equilibrio').textContent = breakEven + ' docenas';
 
-  // Top product this week
-  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekSales = sales.filter(s => new Date(s.date) >= weekAgo);
-  const byProduct = {};
-  weekSales.forEach(s => { byProduct[s.productName] = (byProduct[s.productName] || 0) + s.qty; });
-  const topProd = Object.entries(byProduct).sort((a, b) => b[1] - a[1])[0];
-  document.getElementById('sum-top-product').textContent = topProd ? topProd[0].replace('Tortilla de ', '') : '—';
+  // Effective cash = all-time ingresos - all-time gastos (needs full collection data)
+  if (_loaded.sales && _loaded.transactions) {
+    const sales        = getData('sales', []);
+    const transactions = getData('transactions', []);
+    const allIngresos  = sales.reduce((a, s) => a + s.total, 0) +
+                         transactions.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
+    const allGastos    = transactions.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
+    document.getElementById('sum-caja').textContent = fmt(allIngresos - allGastos);
+  } else {
+    const el = document.getElementById('sum-caja');
+    if (el) el.innerHTML = '<span class="mod-spinner"></span>';
+  }
 
-  // Recent sales
+  // Top product this week (needs full sales collection)
+  if (_loaded.sales) {
+    const sales   = getData('sales', []);
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekSales = sales.filter(s => new Date(s.date) >= weekAgo);
+    const byProduct = {};
+    weekSales.forEach(s => { byProduct[s.productName] = (byProduct[s.productName] || 0) + s.qty; });
+    const topProd = Object.entries(byProduct).sort((a, b) => b[1] - a[1])[0];
+    document.getElementById('sum-top-product').textContent = topProd ? topProd[0].replace('Tortilla de ', '') : '—';
+  } else {
+    const el = document.getElementById('sum-top-product');
+    if (el) el.innerHTML = '<span class="mod-spinner"></span>';
+  }
+
+  // Recent sales (from today's filtered data — already scoped to today)
   const recentSales = [...todaySales].reverse().slice(0, 6);
   const rsl = document.getElementById('recentSalesList');
   if (recentSales.length === 0) {
@@ -420,18 +484,23 @@ function renderResumen() {
     }).join('');
   }
 
-  // Recent transactions
-  const recentTx = [...transactions].reverse().slice(0, 6);
-  const rtl = document.getElementById('recentTransList');
-  if (recentTx.length === 0) {
-    rtl.innerHTML = '<p class="empty-msg">Sin movimientos</p>';
+  // Recent transactions (needs full collection for all-time view)
+  if (_loaded.transactions) {
+    const transactions = getData('transactions', []);
+    const recentTx = [...transactions].reverse().slice(0, 6);
+    const rtl = document.getElementById('recentTransList');
+    if (recentTx.length === 0) {
+      rtl.innerHTML = '<p class="empty-msg">Sin movimientos</p>';
+    } else {
+      rtl.innerHTML = recentTx.map(t =>
+        `<div class="recent-item">
+          <span class="ri-label">${t.type === 'ingreso' ? '💵' : '🧾'} ${t.desc}</span>
+          <span class="ri-value ${t.type === 'ingreso' ? 'green' : 'red'}">${t.type === 'gasto' ? '-' : '+'}${fmt(t.amount)}</span>
+        </div>`
+      ).join('');
+    }
   } else {
-    rtl.innerHTML = recentTx.map(t =>
-      `<div class="recent-item">
-        <span class="ri-label">${t.type === 'ingreso' ? '💵' : '🧾'} ${t.desc}</span>
-        <span class="ri-value ${t.type === 'ingreso' ? 'green' : 'red'}">${t.type === 'gasto' ? '-' : '+'}${fmt(t.amount)}</span>
-      </div>`
-    ).join('');
+    showSpinner('recentTransList');
   }
 }
 
