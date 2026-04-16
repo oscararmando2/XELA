@@ -1,3 +1,4 @@
+// Service Worker v2 - Safari Web Push
 // Firebase Cloud Messaging Service Worker
 // Handles background push notifications for Xela Tortillería Sistema Interno
 

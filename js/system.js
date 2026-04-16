@@ -2492,7 +2492,7 @@ async function initFCM() {
   console.log('[FCM] Registering service worker /firebase-messaging-sw.js …');
   let swReg;
   try {
-    swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+    swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/', updateViaCache: 'none' });
     console.log('[FCM] Service worker registered:', swReg);
   } catch (e) {
     console.warn('[FCM] Service worker registration failed:', e);
