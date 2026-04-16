@@ -2409,6 +2409,17 @@ function downloadReportPDF() {
 // Project Settings > Cloud Messaging > Web Push certificates.
 const FCM_VAPID_KEY = 'BCXgc4b0uTff3ZabmF7Ev7eSeV0r151SKUxv5sb-ZlX1Gl4A5-dtexrywrJrCCngyleRgXBLvfbMEBGtNuFiRVU1';
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 async function initFCM() {
   console.log('[FCM] initFCM() called');
 
@@ -2463,7 +2474,7 @@ async function initFCM() {
     const messaging = firebase.messaging();
     console.log('[FCM] VAPID key configured.');
     const token = await messaging.getToken({
-      vapidKey: FCM_VAPID_KEY,
+      vapidKey: urlBase64ToUint8Array(FCM_VAPID_KEY),
       serviceWorkerRegistration: swReg,
     });
     if (token) {
