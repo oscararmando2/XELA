@@ -7,6 +7,9 @@ on:
     paths:
       - 'functions/**'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     name: Deploy to Firebase
@@ -21,7 +24,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: functions/package.json
 
@@ -30,6 +33,6 @@ jobs:
         working-directory: functions
 
       - name: Deploy Cloud Functions
-        run: npx firebase-tools deploy --only functions --non-interactive
+        run: npx firebase-tools deploy --only functions --non-interactive --debug
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
