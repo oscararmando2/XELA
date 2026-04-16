@@ -1,6 +1,7 @@
 // Firebase Cloud Functions — Xela Tortillería
 // Sends FCM V1 push notifications via Firebase Admin SDK
 // Triggered by Firestore document events
+// Deployment: triggered via GitHub Actions using FIREBASE_TOKEN secret
 
 'use strict';
 
