@@ -2445,14 +2445,19 @@ async function initSafariWebPush(swReg) {
     const endpoint = subscription.endpoint;
     console.log('[WebPush] Subscription obtained, endpoint prefix:', endpoint.substring(0, 40) + '…');
 
+    // Extract the p256dh and auth keys from the subscription.
+    const p256dh = subscription.getKey ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))) : null;
+    const auth = subscription.getKey ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))) : null;
+
     // Derive a stable document ID from the endpoint so re-subscribes are idempotent.
     // Use encodeURIComponent before btoa() to safely handle any Unicode characters
     // that would cause btoa() to throw an InvalidCharacterError.
     const docId = btoa(encodeURIComponent(endpoint)).replace(/[^A-Za-z0-9]/g, '').substring(0, 64);
-    const subJson = JSON.parse(JSON.stringify(subscription));
     db.collection('configuracion').doc(docId).set({
-      webPushSubscription: subJson,
-      platform: 'safari',
+      type: 'safari',
+      endpoint: endpoint,
+      p256dh: p256dh,
+      auth: auth,
       updatedAt: Date.now(),
     }, { merge: true })
       .then(() => console.log('[WebPush] Subscription saved to Firestore successfully.'))
