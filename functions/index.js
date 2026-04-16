@@ -155,19 +155,20 @@ async function sendNotification(subscriptions, title, body) {
   ]);
 }
 
-// ---- 1. New sale: "Venta registrada — [producto] x[cantidad] — $[total]" ----
+// ---- 1. New sale: "🛒 Venta $[total] — Ticket [ticketId] — [N] productos — [payment]" ----
 exports.onNewSale = functions.firestore
   .document('ventas/{saleId}')
   .onCreate(async (snap) => {
     const sale = snap.data();
     const subscriptions = await getAllSubscriptions();
-    const productName = (sale.productName || '').replace('Tortilla de ', '');
-    const qty = sale.qty || 0;
     const total = parseFloat(sale.total || 0).toFixed(2);
+    const ticketId = sale.ticketId || snap.id;
+    const itemCount = Array.isArray(sale.items) ? sale.items.reduce((a, i) => a + (i.qty || 0), 0) : (sale.qty || 0);
+    const payment = sale.payment || 'efectivo';
     await sendNotification(
       subscriptions,
       'Venta registrada',
-      `${productName} x${qty} — $${total}`
+      `🛒 Venta $${total} — Ticket ${ticketId} — ${itemCount} pza/doc — ${payment}`
     );
   });
 
