@@ -33,6 +33,6 @@ jobs:
         working-directory: functions
 
       - name: Deploy Cloud Functions
-        run: npx firebase-tools deploy --only functions --non-interactive --debug
+        run: npx firebase-tools deploy --only functions --non-interactive --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
