@@ -83,7 +83,7 @@ async function sendWebPushNotifications(safariSubs, title, body) {
   );
 
   const succeeded = results.filter((r) => r.status === 'fulfilled' && r.value !== undefined).length;
-  console.log(`[WebPush] Safari notifications: ${results.length} attempted.`);
+  console.log(`[WebPush] Safari notifications: ${succeeded} succeeded of ${results.length} attempted.`);
 }
 
 // ---- Helper: send FCM notifications to Chrome/non-Safari subscribers ----

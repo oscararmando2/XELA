@@ -2446,8 +2446,13 @@ async function initSafariWebPush(swReg) {
     console.log('[WebPush] Subscription obtained, endpoint prefix:', endpoint.substring(0, 40) + '…');
 
     // Extract the p256dh and auth keys from the subscription.
-    const p256dh = subscription.getKey ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))) : null;
-    const auth = subscription.getKey ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))) : null;
+    // Use Array.from() instead of the spread operator to avoid potential stack
+    // overflows when converting large Uint8Arrays to a character string.
+    function uint8ArrayToBase64(buffer) {
+      return btoa(Array.from(new Uint8Array(buffer), (b) => String.fromCharCode(b)).join(''));
+    }
+    const p256dh = subscription.getKey ? uint8ArrayToBase64(subscription.getKey('p256dh')) : null;
+    const auth = subscription.getKey ? uint8ArrayToBase64(subscription.getKey('auth')) : null;
 
     // Derive a stable document ID from the endpoint so re-subscribes are idempotent.
     // Use encodeURIComponent before btoa() to safely handle any Unicode characters
