@@ -9,25 +9,36 @@ const admin = require('firebase-admin');
 
 admin.initializeApp();
 
-// ---- Helper: retrieve saved FCM token from Firestore ----
-async function getFCMToken() {
+// ---- Helper: retrieve all FCM tokens from the configuracion collection ----
+// Returns { tokens: string[], docsByToken: Map<string, DocumentReference> }
+async function getAllFCMTokens() {
   try {
-    const doc = await admin.firestore().collection('configuracion').doc('notificaciones').get();
-    return doc.exists ? (doc.data().fcmToken || null) : null;
+    const snapshot = await admin.firestore().collection('configuracion').get();
+    const tokens = [];
+    const docsByToken = new Map();
+    snapshot.forEach((doc) => {
+      const token = doc.data().fcmToken;
+      if (token) {
+        tokens.push(token);
+        docsByToken.set(token, doc.ref);
+      }
+    });
+    return { tokens, docsByToken };
   } catch (e) {
-    console.error('Failed to read FCM token:', e);
-    return null;
+    console.error('Failed to read FCM tokens:', e);
+    return { tokens: [], docsByToken: new Map() };
   }
 }
 
-// ---- Helper: send a push notification via FCM V1 API (Admin SDK) ----
-async function sendNotification(token, title, body) {
-  if (!token) {
-    console.log('No FCM token stored — skipping notification.');
+// ---- Helper: send a push notification to all registered tokens ----
+async function sendNotification(tokensResult, title, body) {
+  const { tokens, docsByToken } = tokensResult;
+  if (!tokens || tokens.length === 0) {
+    console.log('No FCM tokens stored — skipping notification.');
     return;
   }
   const message = {
-    token,
+    tokens,
     notification: { title, body },
     // iOS-specific options for lock-screen display
     apns: {
@@ -53,10 +64,36 @@ async function sendNotification(token, title, body) {
     },
   };
   try {
-    const response = await admin.messaging().send(message);
-    console.log('Notification sent:', response);
+    const response = await admin.messaging().sendEachForMulticast(message);
+    console.log(`Notifications sent: ${response.successCount} succeeded, ${response.failureCount} failed.`);
+
+    // Remove stale tokens that are no longer valid
+    if (response.failureCount > 0) {
+      const staleSet = new Set();
+      response.responses.forEach((res, idx) => {
+        if (!res.success) {
+          const code = res.error && res.error.code;
+          if (
+            code === 'messaging/registration-token-not-registered' ||
+            code === 'messaging/invalid-registration-token'
+          ) {
+            staleSet.add(tokens[idx]);
+          }
+        }
+      });
+      if (staleSet.size > 0) {
+        const db = admin.firestore();
+        const batch = db.batch();
+        staleSet.forEach((staleToken) => {
+          const ref = docsByToken.get(staleToken);
+          if (ref) batch.delete(ref);
+        });
+        await batch.commit();
+        console.log(`Removed ${staleSet.size} stale token(s).`);
+      }
+    }
   } catch (e) {
-    console.error('Failed to send notification:', e);
+    console.error('Failed to send notifications:', e);
   }
 }
 
@@ -65,12 +102,12 @@ exports.onNewSale = functions.firestore
   .document('ventas/{saleId}')
   .onCreate(async (snap) => {
     const sale = snap.data();
-    const token = await getFCMToken();
+    const tokens = await getAllFCMTokens();
     const productName = (sale.productName || '').replace('Tortilla de ', '');
     const qty = sale.qty || 0;
     const total = parseFloat(sale.total || 0).toFixed(2);
     await sendNotification(
-      token,
+      tokens,
       'Venta registrada',
       `${productName} x${qty} — $${total}`
     );
@@ -82,9 +119,9 @@ exports.onNewOrder = functions.firestore
   .onCreate(async (snap) => {
     const order = snap.data();
     if (order.status !== 'pendiente') return;
-    const token = await getFCMToken();
+    const tokens = await getAllFCMTokens();
     await sendNotification(
-      token,
+      tokens,
       'Nuevo pedido a domicilio',
       `${order.clientName || 'Cliente'} — ${order.clientAddress || 'Sin dirección'}`
     );
@@ -100,12 +137,12 @@ exports.onOrderStatusChange = functions.firestore
     // Only act when the status field actually changes
     if (before.status === after.status) return;
 
-    const token = await getFCMToken();
+    const tokens = await getAllFCMTokens();
 
     if (after.status === 'entregado') {
       // "Entrega completada — [cliente] en [dirección]"
       await sendNotification(
-        token,
+        tokens,
         'Entrega completada',
         `${after.clientName || 'Cliente'} en ${after.clientAddress || 'Sin dirección'}`
       );
@@ -113,7 +150,7 @@ exports.onOrderStatusChange = functions.firestore
       // "Pedido cancelado — [cliente] — [motivo]"
       const motivo = after.cancelReason ? ` — ${after.cancelReason}` : '';
       await sendNotification(
-        token,
+        tokens,
         'Pedido cancelado',
         `${after.clientName || 'Cliente'}${motivo}`
       );

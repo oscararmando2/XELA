@@ -2439,7 +2439,7 @@ async function initFCM() {
     if (FCM_VAPID_KEY) tokenOptions.vapidKey = FCM_VAPID_KEY;
     const token = await messaging.getToken(tokenOptions);
     if (token) {
-      db.collection('configuracion').doc('notificaciones').set({ fcmToken: token }, { merge: true })
+      db.collection('configuracion').doc(token).set({ fcmToken: token }, { merge: true })
         .catch(e => console.warn('Failed to save FCM token:', e));
     }
     // Show in-app toast for foreground messages

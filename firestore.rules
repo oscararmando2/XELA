@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Xela Tortillería — internal system with password-based access.
+    // Firebase Auth is not used; security is enforced at the application layer.
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
