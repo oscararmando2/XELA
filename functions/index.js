@@ -168,7 +168,7 @@ exports.onNewSale = functions.firestore
     await sendNotification(
       subscriptions,
       'Venta registrada',
-      `🛒 Venta $${total} — Ticket ${ticketId} — ${itemCount} pza/doc — ${payment}`
+      `🛒 Venta $${total} — Ticket ${ticketId} — ${itemCount} producto(s) — ${payment}`
     );
   });
 

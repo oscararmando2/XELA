@@ -482,8 +482,7 @@ function renderResumen() {
   } else {
     rsl.innerHTML = recentSales.map(s => {
       if (s.items && Array.isArray(s.items)) {
-        const itemCount = s.items.reduce((a, i) => a + i.qty, 0);
-        const label = s.ticketId ? `🧾 ${s.ticketId} — ${itemCount} pza/doc` : `${s.items.length} producto(s)`;
+        const label = s.ticketId ? `🧾 ${s.ticketId} — ${s.items.length} producto(s)` : `${s.items.length} producto(s)`;
         return `<div class="recent-item">
           <span class="ri-label">${label}</span>
           <span class="ri-value green">${fmt(s.total)}</span>
@@ -852,12 +851,11 @@ function renderSalesToday() {
   sorted.forEach(s => {
     // Support legacy per-product records that have no ticketId/items
     if (s.items && Array.isArray(s.items)) {
-      const itemCount = s.items.reduce((a, i) => a + i.qty, 0);
       const ticketLabel = s.ticketId || '—';
       rows.push(`<tr class="ticket-row" data-ticket="${esc(s.id)}">
         <td>${s.time}</td>
         <td><span class="ticket-badge">${esc(ticketLabel)}</span></td>
-        <td>${itemCount} pza/doc</td>
+        <td>${s.items.length} producto(s)</td>
         <td><strong>${fmt(s.total)}</strong></td>
         <td>${s.payment === 'efectivo' ? '💵' : '📲'} ${s.payment}</td>
         <td><button class="btn-expand-ticket" onclick="toggleTicketDetail('${esc(s.id)}')">▼</button></td>
