@@ -2421,11 +2421,13 @@ function isSafariBrowser() {
 // Converts a URL-safe base64 VAPID key string into the Uint8Array that
 // PushManager.subscribe() expects as applicationServerKey.
 function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
   const rawData = atob(base64);
   const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; i++) {
+  for (let i = 0; i < rawData.length; ++i) {
     outputArray[i] = rawData.charCodeAt(i);
   }
   return outputArray;
@@ -2437,6 +2439,9 @@ async function initSafariWebPush(swReg) {
   try {
     let subscription = await swReg.pushManager.getSubscription();
     if (!subscription) {
+      const keyBytes = urlBase64ToUint8Array(FCM_VAPID_KEY);
+      console.log('[WebPush] key length:', keyBytes.length);
+      console.log('[WebPush] key[0]:', keyBytes[0]);
       subscription = await swReg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(FCM_VAPID_KEY),
