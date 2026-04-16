@@ -2461,20 +2461,24 @@ async function initFCM() {
   console.log('[FCM] Calling messaging.getToken() …');
   try {
     const messaging = firebase.messaging();
-    const tokenOptions = { serviceWorkerRegistration: swReg };
-    if (FCM_VAPID_KEY) {
-      tokenOptions.vapidKey = FCM_VAPID_KEY;
-      console.log('[FCM] VAPID key configured.');
-    }
-    const token = await messaging.getToken(tokenOptions);
+    console.log('[FCM] VAPID key configured.');
+    const token = await messaging.getToken({
+      vapidKey: FCM_VAPID_KEY,
+      serviceWorkerRegistration: swReg,
+    });
     if (token) {
       console.log('[FCM] Token obtained (first 8 chars):', token.substring(0, 8) + '…');
       console.log('[FCM] Saving token to Firestore configuracion/{token} …');
       db.collection('configuracion').doc(token).set({ fcmToken: token }, { merge: true })
         .then(() => console.log('[FCM] Token saved to Firestore successfully.'))
-        .catch(e => console.warn('[FCM] Failed to save FCM token to Firestore:', e));
+        .catch(e => {
+          console.error('[FCM] Failed to save FCM token to Firestore:', e);
+          toast('FCM: no se pudo guardar el token (' + e.message + ')', 'error');
+        });
     } else {
-      console.warn('[FCM] getToken() returned an empty token — check VAPID key and service worker registration.');
+      const msg = 'getToken() devolvió un token vacío — revisa la clave VAPID y el service worker.';
+      console.error('[FCM] ' + msg);
+      toast('FCM: ' + msg, 'error');
     }
     // Show in-app toast for foreground messages
     messaging.onMessage(payload => {
@@ -2484,7 +2488,8 @@ async function initFCM() {
       toast(`🔔 ${title}: ${body}`, 'success');
     });
   } catch (e) {
-    console.warn('[FCM] Error during token retrieval or Firestore save:', e);
+    console.error('[FCM] Error during token retrieval or Firestore save:', e);
+    toast('FCM error: ' + e.message, 'error');
   }
 }
 
