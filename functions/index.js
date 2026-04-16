@@ -160,6 +160,8 @@ exports.onNewSale = functions.firestore
   .document('ventas/{saleId}')
   .onCreate(async (snap) => {
     const sale = snap.data();
+    if (sale.notified === true) return;
+    await snap.ref.update({ notified: true });
     const subscriptions = await getAllSubscriptions();
     const total = parseFloat(sale.total || 0).toFixed(2);
     const ticketId = sale.ticketId || snap.id;
