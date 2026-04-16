@@ -12,13 +12,10 @@ const webpush = require('web-push');
 admin.initializeApp();
 
 // VAPID credentials — used for native Web Push (Safari iOS / macOS)
-const VAPID_PUBLIC_KEY = 'BCXgc4b0uTff3ZabmF7Ev7eSeV0r151SKUxv5sb-ZlX1Gl4A5-dtexrywrJrCCngyleRgXBLvfbMEBGtNuFiRVU1';
-const VAPID_PRIVATE_KEY = 'wQ__xtSnwRUfpahButNjkqHXoaOwzFAcd4pl_P8nraM';
-
 webpush.setVapidDetails(
-  'mailto:admin@xela-tortilleria.com',
-  VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE_KEY
+  'mailto:xelatortillas@gmail.com',
+  'BCXgc4b0uTff3ZabmF7Ev7eSeV0r151SKUxv5sb-ZlX1Gl4A5-dtexrywrJrCCngyleRgXBLvfbMEBGtNuFiRVU',
+  'wQ__xtSnwRUfpahButNjkqHXoaOwzFAcd4pl_P8nraM'
 );
 
 // ---- Helper: retrieve all push subscriptions from the configuracion collection ----
