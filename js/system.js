@@ -2410,46 +2410,81 @@ function downloadReportPDF() {
 const FCM_VAPID_KEY = 'BCXgc4b0uTff3ZabmF7Ev7eSeV0r151SKUxv5sb-ZlX1Gl4A5-dtexrywrJrCCngyleRgXBLvfbMEBGtNuFiRVU1';
 
 async function initFCM() {
-  if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+  console.log('[FCM] initFCM() called');
+
+  if (!('Notification' in window)) {
+    console.warn('[FCM] Notifications API not supported in this browser — aborting.');
+    return;
+  }
+  if (!('serviceWorker' in navigator)) {
+    console.warn('[FCM] Service Worker API not supported in this browser — aborting.');
+    return;
+  }
+
   // Firebase Messaging must be available (loaded via SDK)
-  if (typeof firebase === 'undefined' || !firebase.messaging) return;
+  if (typeof firebase === 'undefined') {
+    console.warn('[FCM] firebase is not defined — SDK not loaded yet — aborting.');
+    return;
+  }
+  if (!firebase.messaging) {
+    console.warn('[FCM] firebase.messaging is not available — firebase-messaging-compat.js may not be loaded — aborting.');
+    return;
+  }
 
   // Register the service worker (needed by FCM for background messages)
+  console.log('[FCM] Registering service worker /firebase-messaging-sw.js …');
   let swReg;
   try {
     swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+    console.log('[FCM] Service worker registered:', swReg);
   } catch (e) {
-    console.warn('FCM SW registration failed:', e);
+    console.warn('[FCM] Service worker registration failed:', e);
     return;
   }
 
   // Request notification permission (first call will show the browser prompt)
+  console.log('[FCM] Current Notification.permission:', Notification.permission);
   let permission;
   try {
     permission = await Notification.requestPermission();
+    console.log('[FCM] Notification.requestPermission() result:', permission);
   } catch (e) {
+    console.warn('[FCM] Notification.requestPermission() threw an error:', e);
     permission = 'denied';
   }
-  if (permission !== 'granted') return;
+  if (permission !== 'granted') {
+    console.warn('[FCM] Notification permission not granted (got "' + permission + '") — aborting.');
+    return;
+  }
 
   // Get the FCM registration token and save it to Firestore
+  console.log('[FCM] Calling messaging.getToken() …');
   try {
     const messaging = firebase.messaging();
     const tokenOptions = { serviceWorkerRegistration: swReg };
-    if (FCM_VAPID_KEY) tokenOptions.vapidKey = FCM_VAPID_KEY;
+    if (FCM_VAPID_KEY) {
+      tokenOptions.vapidKey = FCM_VAPID_KEY;
+      console.log('[FCM] VAPID key configured.');
+    }
     const token = await messaging.getToken(tokenOptions);
     if (token) {
+      console.log('[FCM] Token obtained (first 8 chars):', token.substring(0, 8) + '…');
+      console.log('[FCM] Saving token to Firestore configuracion/{token} …');
       db.collection('configuracion').doc(token).set({ fcmToken: token }, { merge: true })
-        .catch(e => console.warn('Failed to save FCM token:', e));
+        .then(() => console.log('[FCM] Token saved to Firestore successfully.'))
+        .catch(e => console.warn('[FCM] Failed to save FCM token to Firestore:', e));
+    } else {
+      console.warn('[FCM] getToken() returned an empty token — check VAPID key and service worker registration.');
     }
     // Show in-app toast for foreground messages
     messaging.onMessage(payload => {
+      console.log('[FCM] Foreground message received:', payload);
       const title = (payload.notification && payload.notification.title) || 'Xela Tortillería';
       const body = (payload.notification && payload.notification.body) || '';
       toast(`🔔 ${title}: ${body}`, 'success');
     });
   } catch (e) {
-    console.warn('FCM token error:', e);
+    console.warn('[FCM] Error during token retrieval or Firestore save:', e);
   }
 }
 
