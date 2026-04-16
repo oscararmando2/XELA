@@ -2409,6 +2409,72 @@ function downloadReportPDF() {
 // Project Settings > Cloud Messaging > Web Push certificates.
 const FCM_VAPID_KEY = 'BCXgc4b0uTff3ZabmF7Ev7eSeV0r151SKUxv5sb-ZlX1Gl4A5-dtexrywrJrCCngyleRgXBLvfbMEBGtNuFiRVU1';
 
+// Returns true when running inside Safari (desktop or iOS PWA).
+// Safari does not support the Firebase Messaging SDK's getToken() because it
+// rejects the applicationServerKey format FCM uses internally. We fall back to
+// the standard Web Push API (PushManager.subscribe) which Safari 16.4+ supports.
+function isSafariBrowser() {
+  const ua = navigator.userAgent;
+  return /Safari/.test(ua) && !/Chrome/.test(ua) && !/Chromium/.test(ua);
+}
+
+// Converts a URL-safe base64 VAPID key string into the Uint8Array that
+// PushManager.subscribe() expects as applicationServerKey.
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// Safari / native Web Push path — uses PushManager.subscribe() directly.
+async function initSafariWebPush(swReg) {
+  console.log('[WebPush] Subscribing via native PushManager.subscribe() …');
+  try {
+    let subscription = await swReg.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await swReg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(FCM_VAPID_KEY),
+      });
+    }
+    const endpoint = subscription.endpoint;
+    console.log('[WebPush] Subscription obtained, endpoint prefix:', endpoint.substring(0, 40) + '…');
+
+    // Extract the p256dh and auth keys from the subscription.
+    // Use Array.from() instead of the spread operator to avoid potential stack
+    // overflows when converting large Uint8Arrays to a character string.
+    function uint8ArrayToBase64(buffer) {
+      return btoa(Array.from(new Uint8Array(buffer), (b) => String.fromCharCode(b)).join(''));
+    }
+    const p256dh = subscription.getKey ? uint8ArrayToBase64(subscription.getKey('p256dh')) : null;
+    const auth = subscription.getKey ? uint8ArrayToBase64(subscription.getKey('auth')) : null;
+
+    // Derive a stable document ID from the endpoint so re-subscribes are idempotent.
+    // Use encodeURIComponent before btoa() to safely handle any Unicode characters
+    // that would cause btoa() to throw an InvalidCharacterError.
+    const docId = btoa(encodeURIComponent(endpoint)).replace(/[^A-Za-z0-9]/g, '').substring(0, 64);
+    db.collection('configuracion').doc(docId).set({
+      type: 'safari',
+      endpoint: endpoint,
+      p256dh: p256dh,
+      auth: auth,
+      updatedAt: Date.now(),
+    }, { merge: true })
+      .then(() => console.log('[WebPush] Subscription saved to Firestore successfully.'))
+      .catch(e => {
+        console.error('[WebPush] Failed to save subscription to Firestore:', e);
+        toast('WebPush: no se pudo guardar la suscripción (' + e.message + ')', 'error');
+      });
+  } catch (e) {
+    console.error('[WebPush] PushManager.subscribe() failed:', e);
+    toast('WebPush error: ' + e.message, 'error');
+  }
+}
 
 async function initFCM() {
   console.log('[FCM] initFCM() called');
@@ -2422,17 +2488,7 @@ async function initFCM() {
     return;
   }
 
-  // Firebase Messaging must be available (loaded via SDK)
-  if (typeof firebase === 'undefined') {
-    console.warn('[FCM] firebase is not defined — SDK not loaded yet — aborting.');
-    return;
-  }
-  if (!firebase.messaging) {
-    console.warn('[FCM] firebase.messaging is not available — firebase-messaging-compat.js may not be loaded — aborting.');
-    return;
-  }
-
-  // Register the service worker (needed by FCM for background messages)
+  // Register the service worker (needed for both FCM and native Web Push)
   console.log('[FCM] Registering service worker /firebase-messaging-sw.js …');
   let swReg;
   try {
@@ -2455,6 +2511,24 @@ async function initFCM() {
   }
   if (permission !== 'granted') {
     console.warn('[FCM] Notification permission not granted (got "' + permission + '") — aborting.');
+    return;
+  }
+
+  // Safari does not support Firebase Messaging's getToken().
+  // Use the native Web Push API instead.
+  if (isSafariBrowser()) {
+    console.log('[FCM] Safari detected — using native Web Push API instead of FCM SDK.');
+    await initSafariWebPush(swReg);
+    return;
+  }
+
+  // Firebase Messaging must be available (loaded via SDK)
+  if (typeof firebase === 'undefined') {
+    console.warn('[FCM] firebase is not defined — SDK not loaded yet — aborting.');
+    return;
+  }
+  if (!firebase.messaging) {
+    console.warn('[FCM] firebase.messaging is not available — firebase-messaging-compat.js may not be loaded — aborting.');
     return;
   }
 

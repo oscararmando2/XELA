@@ -15,7 +15,8 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Handle messages received while the app is in the background or closed
+// Handle FCM messages received while the app is in the background or closed
+// (Chrome / non-Safari browsers)
 messaging.onBackgroundMessage(function (payload) {
   const title = (payload.notification && payload.notification.title) || 'Xela Tortillería';
   const body = (payload.notification && payload.notification.body) || '';
@@ -26,4 +27,36 @@ messaging.onBackgroundMessage(function (payload) {
     data: payload.data || {},
     requireInteraction: false,
   });
+});
+
+// Handle native Web Push `push` events for Safari (iOS 16.4+ / macOS Ventura+).
+// Safari sends a standard Web Push event — the FCM onBackgroundMessage handler
+// above is NOT triggered for these, so we intercept the raw event here.
+self.addEventListener('push', function (event) {
+  // If the event was already handled by the Firebase SDK (Chrome/non-Safari),
+  // it will not have a JSON text body with our custom fields.
+  // We only act when the payload looks like a plain Web Push message.
+  if (!event.data) return;
+
+  let data = {};
+  try {
+    data = event.data.json();
+  } catch (parseErr) {
+    console.warn('[WebPush] push event payload is not JSON, treating as plain text:', parseErr);
+    data = { notification: { title: 'Xela Tortillería', body: event.data.text() } };
+  }
+
+  const notification = data.notification || {};
+  const title = notification.title || 'Xela Tortillería';
+  const body = notification.body || '';
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: data.data || {},
+      requireInteraction: false,
+    })
+  );
 });
