@@ -460,7 +460,13 @@ function renderResumen() {
     const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
     const weekSales = sales.filter(s => new Date(s.date) >= weekAgo);
     const byProduct = {};
-    weekSales.forEach(s => { byProduct[s.productName] = (byProduct[s.productName] || 0) + s.qty; });
+    weekSales.forEach(s => {
+      if (s.items && Array.isArray(s.items)) {
+        s.items.forEach(i => { byProduct[i.name] = (byProduct[i.name] || 0) + i.qty; });
+      } else if (s.productName) {
+        byProduct[s.productName] = (byProduct[s.productName] || 0) + (s.qty || 0);
+      }
+    });
     const topProd = Object.entries(byProduct).sort((a, b) => b[1] - a[1])[0];
     document.getElementById('sum-top-product').textContent = topProd ? topProd[0].replace('Tortilla de ', '') : '—';
   } else {
@@ -475,10 +481,17 @@ function renderResumen() {
     rsl.innerHTML = '<p class="empty-msg">Sin ventas hoy</p>';
   } else {
     rsl.innerHTML = recentSales.map(s => {
+      if (s.items && Array.isArray(s.items)) {
+        const label = s.ticketId ? `🧾 ${s.ticketId} — ${s.items.length} producto(s)` : `${s.items.length} producto(s)`;
+        return `<div class="recent-item">
+          <span class="ri-label">${label}</span>
+          <span class="ri-value green">${fmt(s.total)}</span>
+        </div>`;
+      }
       const prod = PRODUCTS.find(p => p.id === s.productId);
       const unitLabel = prod ? prod.unit : 'docena';
       return `<div class="recent-item">
-        <span class="ri-label">${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')} — ${s.qty} ${pluralUnit(unitLabel, s.qty)}</span>
+        <span class="ri-label">${s.emoji || ''} ${(s.productName || '').replace('Tortilla de ', '')} — ${s.qty} ${pluralUnit(unitLabel, s.qty)}</span>
         <span class="ri-value green">${fmt(s.total)}</span>
       </div>`;
     }).join('');
@@ -749,6 +762,17 @@ function setBillAmount(amount) {
   updateChange();
 }
 
+function generateTicketId(existingSales) {
+  const maxNum = existingSales.reduce((max, s) => {
+    if (s.ticketId && s.ticketId.startsWith('T-')) {
+      const n = parseInt(s.ticketId.slice(2), 10);
+      return isNaN(n) ? max : Math.max(max, n);
+    }
+    return max;
+  }, 0);
+  return 'T-' + String(maxNum + 1).padStart(4, '0');
+}
+
 function confirmSale() {
   if (currentOrder.length === 0) { toast('Agrega al menos un producto', 'warning'); return; }
   const subtotal = currentOrder.reduce((a, o) => a + o.total, 0);
@@ -763,9 +787,26 @@ function confirmSale() {
   const now = new Date();
   const timeStr = now.toTimeString().slice(0, 5);
   const sales = getData('sales', []);
-  currentOrder.forEach(item => {
-    sales.push({ id: uid(), date: today(), time: timeStr, productId: item.productId, productName: item.productName, emoji: item.emoji, qty: item.qty, price: item.price, total: item.total, payment: paymentMethod });
-  });
+  const ticketId = generateTicketId(sales);
+  const ticket = {
+    id: uid(),
+    ticketId,
+    date: today(),
+    time: timeStr,
+    items: currentOrder.map(item => ({
+      productId: item.productId,
+      name: item.productName,
+      emoji: item.emoji,
+      qty: item.qty,
+      price: item.price,
+      total: item.total,
+    })),
+    total: finalTotal,
+    payment: paymentMethod,
+    discount,
+    envio: deliveryFee,
+  };
+  sales.push(ticket);
   setData('sales', sales);
   const transactions = getData('transactions', []);
   if (discount > 0) {
@@ -806,20 +847,70 @@ function renderSalesToday() {
     return;
   }
   const sorted = [...sales].reverse();
-  body.innerHTML = sorted.map(s => {
-    const prod = PRODUCTS.find(p => p.id === s.productId);
-    const unitLabel = prod ? prod.unit : 'docena';
-    return `<tr>
-      <td>${s.time}</td>
-      <td>${s.emoji || ''} ${s.productName.replace('Tortilla de ', '')}</td>
-      <td>${s.qty} ${pluralUnit(unitLabel, s.qty)}</td>
-      <td>${fmt(s.price)}/${unitLabel}</td>
-      <td><strong>${fmt(s.total)}</strong></td>
-      <td>${s.payment === 'efectivo' ? '💵' : '📲'} ${s.payment}</td>
-    </tr>`;
-  }).join('');
+  const rows = [];
+  sorted.forEach(s => {
+    // Support legacy per-product records that have no ticketId/items
+    if (s.items && Array.isArray(s.items)) {
+      const ticketLabel = s.ticketId || '—';
+      rows.push(`<tr class="ticket-row" data-ticket="${esc(s.id)}">
+        <td>${s.time}</td>
+        <td><span class="ticket-badge">${esc(ticketLabel)}</span></td>
+        <td>${s.items.length} producto(s)</td>
+        <td><strong>${fmt(s.total)}</strong></td>
+        <td>${s.payment === 'efectivo' ? '💵' : '📲'} ${s.payment}</td>
+        <td><button class="btn-expand-ticket" onclick="toggleTicketDetail('${esc(s.id)}')">▼</button></td>
+      </tr>`);
+      rows.push(`<tr class="ticket-detail-row" id="detail-${esc(s.id)}" style="display:none;">
+        <td colspan="6">
+          <table class="ticket-detail-table">
+            <thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Total</th></tr></thead>
+            <tbody>
+              ${s.items.map(i => {
+                const prod = PRODUCTS.find(p => p.id === i.productId);
+                const unitLabel = prod ? prod.unit : 'docena';
+                return `<tr>
+                  <td>${i.emoji || ''} ${(i.name || '').replace('Tortilla de ', '')}</td>
+                  <td>${i.qty} ${pluralUnit(unitLabel, i.qty)}</td>
+                  <td>${fmt(i.price)}/${unitLabel}</td>
+                  <td>${fmt(i.total)}</td>
+                </tr>`;
+              }).join('')}
+              ${s.discount > 0 ? `<tr class="ticket-detail-discount"><td colspan="3">🏷️ Descuento</td><td style="color:var(--sys-green)">-${fmt(s.discount)}</td></tr>` : ''}
+              ${s.envio > 0 ? `<tr class="ticket-detail-discount"><td colspan="3">🚚 Envío</td><td>+${fmt(s.envio)}</td></tr>` : ''}
+            </tbody>
+          </table>
+        </td>
+      </tr>`);
+    } else {
+      // Legacy single-product record
+      const prod = PRODUCTS.find(p => p.id === s.productId);
+      const unitLabel = prod ? prod.unit : 'docena';
+      rows.push(`<tr>
+        <td>${s.time}</td>
+        <td>—</td>
+        <td>${s.qty} ${pluralUnit(unitLabel, s.qty)}</td>
+        <td><strong>${fmt(s.total)}</strong></td>
+        <td>${s.payment === 'efectivo' ? '💵' : '📲'} ${s.payment}</td>
+        <td></td>
+      </tr>`);
+    }
+  });
+  body.innerHTML = rows.join('');
   const total = sales.reduce((a, s) => a + s.total, 0);
   document.getElementById('salesTodayTotal').textContent = 'Total: ' + fmt(total);
+}
+
+function toggleTicketDetail(ticketId) {
+  const row = document.getElementById('detail-' + ticketId);
+  if (!row) return;
+  const btn = row.previousElementSibling?.querySelector('.btn-expand-ticket');
+  if (row.style.display === 'none') {
+    row.style.display = '';
+    if (btn) btn.textContent = '▲';
+  } else {
+    row.style.display = 'none';
+    if (btn) btn.textContent = '▼';
+  }
 }
 
 // ==========================================
@@ -916,7 +1007,13 @@ function showCorteSummary() {
   const cash = allIncome - allExpense;
 
   const byProduct = {};
-  sales.forEach(s => { byProduct[s.productName] = (byProduct[s.productName] || 0) + s.qty; });
+  sales.forEach(s => {
+    if (s.items && Array.isArray(s.items)) {
+      s.items.forEach(i => { byProduct[i.name] = (byProduct[i.name] || 0) + i.qty; });
+    } else if (s.productName) {
+      byProduct[s.productName] = (byProduct[s.productName] || 0) + (s.qty || 0);
+    }
+  });
   const topProductEntries = Object.entries(byProduct).sort((a, b) => b[1] - a[1]);
   const topProduct = topProductEntries.length > 0 ? topProductEntries[0] : null;
 
@@ -1035,7 +1132,10 @@ function renderContador() {
   const avgPrice = PRODUCTS.reduce((a, p) => a + p.price, 0) / PRODUCTS.length;
   const margin = avgPrice * 0.55; // 55% gross margin
   const be = todayExpense > 0 && margin > 0 ? (todayExpense / margin).toFixed(1) : '0';
-  const todaySalesDocenas = todaySales.reduce((a, s) => a + s.qty, 0);
+  const todaySalesDocenas = todaySales.reduce((a, s) => {
+    if (s.items && Array.isArray(s.items)) return a + s.items.reduce((b, i) => b + i.qty, 0);
+    return a + (s.qty || 0);
+  }, 0);
   document.getElementById('cntBreakeven').textContent = be + ' docenas';
   const diff = todaySalesDocenas - parseFloat(be);
   if (corteDoneToday) {
@@ -2128,18 +2228,32 @@ function generateReport() {
   document.getElementById('reportGenerated').textContent = new Date().toLocaleString('es-MX');
 
   // KPIs
+  const totalDocenas = sales.reduce((a, s) => {
+    if (s.items && Array.isArray(s.items)) return a + s.items.reduce((b, i) => b + i.qty, 0);
+    return a + (s.qty || 0);
+  }, 0);
   document.getElementById('reportKpis').innerHTML = `
     <div class="report-kpi green"><div class="rk-label">💵 Total Ventas</div><div class="rk-value">${fmt(totalSales)}</div></div>
     <div class="report-kpi red"><div class="rk-label">🧾 Total Gastos</div><div class="rk-value">${fmt(totalExpense)}</div></div>
     <div class="report-kpi purple"><div class="rk-label">📊 Utilidad Neta</div><div class="rk-value" style="color:${netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(netProfit)}</div></div>
-    <div class="report-kpi orange"><div class="rk-label">📦 Docenas Vendidas</div><div class="rk-value">${sales.reduce((a,s)=>a+s.qty,0).toFixed(1)} docenas</div></div>
+    <div class="report-kpi orange"><div class="rk-label">📦 Docenas Vendidas</div><div class="rk-value">${totalDocenas.toFixed(1)} docenas</div></div>
   `;
 
   // By product chart
   const byProduct = {};
   PRODUCTS.forEach(p => { byProduct[p.id] = { name: p.name.replace('Tortilla de ',''), qty: 0, total: 0, emoji: p.emoji }; });
   sales.forEach(s => {
-    if (byProduct[s.productId]) { byProduct[s.productId].qty += s.qty; byProduct[s.productId].total += s.total; }
+    if (s.items && Array.isArray(s.items)) {
+      s.items.forEach(i => {
+        if (byProduct[i.productId]) {
+          byProduct[i.productId].qty += i.qty;
+          byProduct[i.productId].total += i.total;
+        }
+      });
+    } else if (byProduct[s.productId]) {
+      byProduct[s.productId].qty += (s.qty || 0);
+      byProduct[s.productId].total += (s.total || 0);
+    }
   });
   const maxQty = Math.max(...Object.values(byProduct).map(p => p.qty), 0.1);
   document.getElementById('reportByProduct').innerHTML = Object.values(byProduct).map(p =>
@@ -2179,7 +2293,16 @@ function generateReport() {
 
   // Transaction table
   const allTx = [
-    ...sales.map(s => ({ date: s.date, type: 'ingreso', desc: `${s.productName.replace('Tortilla de ','')} ${s.qty} docenas`, amount: s.total })),
+    ...sales.map(s => {
+      let desc;
+      if (s.items && Array.isArray(s.items)) {
+        const ticketLabel = s.ticketId ? `${s.ticketId} — ` : '';
+        desc = `${ticketLabel}${s.items.length} producto(s)`;
+      } else {
+        desc = `${(s.productName || '').replace('Tortilla de ', '')} ${s.qty || 0} docenas`;
+      }
+      return { date: s.date, type: 'ingreso', desc, amount: s.total };
+    }),
     ...transactions.map(t => ({ date: t.date, type: t.type, desc: t.desc, amount: t.amount }))
   ].sort((a, b) => b.date.localeCompare(a.date));
 
