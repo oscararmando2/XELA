@@ -707,13 +707,42 @@ function renderMobileDashboard() {
           const payIcon = s.payment === 'transferencia' ? '📲' : '💵';
           const ticket  = s.ticketId || '—';
           const time    = s.time || '';
-          return `<div class="mob-sale-item">
+          const hasItems = s.items && Array.isArray(s.items) && s.items.length > 0;
+          let detailRows = '';
+          if (hasItems) {
+            const itemRows = s.items.map(i => {
+              const prod = PRODUCTS.find(p => p.id === i.productId);
+              const unitLabel = prod ? prod.unit : 'docena';
+              return `<div class="mob-detail-row">
+              <span class="mob-detail-name">${i.emoji || ''} ${(i.name || '').replace('Tortilla de ', '')}</span>
+              <span class="mob-detail-qty">${i.qty} ${pluralUnit(unitLabel, i.qty)}</span>
+              <span class="mob-detail-price">${fmt(i.total)}</span>
+            </div>`;
+            }).join('');
+            const discountRow = s.discount > 0
+              ? `<div class="mob-detail-row mob-detail-extra"><span class="mob-detail-name">🏷️ Descuento</span><span></span><span class="mob-detail-price" style="color:var(--sys-green)">-${fmt(s.discount)}</span></div>`
+              : '';
+            const envioRow = s.envio > 0
+              ? `<div class="mob-detail-row mob-detail-extra"><span class="mob-detail-name">🚚 Envío</span><span></span><span class="mob-detail-price">+${fmt(s.envio)}</span></div>`
+              : '';
+            detailRows = itemRows + discountRow + envioRow;
+          }
+          return `<div class="mob-sale-item${hasItems ? ' mob-sale-expandable' : ''}" ${hasItems ? `onclick="toggleMobSaleDetail('${esc(s.id)}')"` : ''}>
             <div class="mob-sale-left">
               <span class="mob-sale-ticket">🧾 ${esc(ticket)}</span>
               <span class="mob-sale-meta"><span>${time}</span><span>${payIcon} ${esc(s.payment || 'efectivo')}</span></span>
             </div>
-            <span class="mob-sale-total">${fmt(s.total)}</span>
-          </div>`;
+            <div class="mob-sale-right">
+              <span class="mob-sale-total">${fmt(s.total)}</span>
+              ${hasItems ? `<button class="mob-btn-expand" aria-label="Ver detalle" tabindex="-1">▼</button>` : ''}
+            </div>
+          </div>
+          ${hasItems ? `<div class="mob-sale-detail" id="mob-detail-${esc(s.id)}" style="display:none;">
+            <div class="mob-detail-header">
+              <span>Producto</span><span>Cant.</span><span>Total</span>
+            </div>
+            ${detailRows}
+          </div>` : ''}`;
         }).join('');
       }
     }
@@ -1112,6 +1141,17 @@ function toggleTicketDetail(ticketId) {
     row.style.display = 'none';
     if (btn) btn.textContent = '▼';
   }
+}
+
+function toggleMobSaleDetail(saleId) {
+  const detail = document.getElementById('mob-detail-' + saleId);
+  if (!detail) return;
+  const item = detail.previousElementSibling;
+  const btn = item ? item.querySelector('.mob-btn-expand') : null;
+  const isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : '';
+  if (btn) btn.textContent = isOpen ? '▼' : '▲';
+  if (item) item.classList.toggle('mob-sale-expanded', !isOpen);
 }
 
 // ==========================================
