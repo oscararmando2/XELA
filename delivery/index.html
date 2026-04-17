@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Xela — Repartidor</title>
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Xela Repartidor" />
+  <meta name="theme-color" content="#1a4731" />
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    /* ============================================================
+       RESET & VARIABLES
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --hdr: #1a4731;
+      --green: #276749;
+      --green-light: #38a169;
+      --green-btn: #276749;
+      --green-btn-hover: #1e5438;
+      --bg: #f0f4f1;
+      --card: #ffffff;
+      --text: #1a202c;
+      --muted: #718096;
+      --border: #d1e4d9;
+      --tab-h: 60px;
+      --hdr-h: 60px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
+    }
+
+    /* ============================================================
+       LOGIN SCREEN
+       ============================================================ */
+    #loginScreen {
+      position: fixed; inset: 0;
+      background: var(--hdr);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 36px 28px 28px;
+      width: 90%; max-width: 360px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+    .login-logo { margin-bottom: 12px; }
+    .login-logo img { width: 72px; height: 72px; border-radius: 16px; object-fit: contain; }
+    .login-title { font-size: 1.3rem; font-weight: 700; color: var(--hdr); margin-bottom: 4px; }
+    .login-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 24px; }
+    .login-form { display: flex; flex-direction: column; gap: 14px; }
+    .login-form label { font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; text-align: left; display: block; margin-bottom: 4px; }
+    .login-form select,
+    .login-form input[type="password"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 1rem;
+      color: var(--text);
+      background: #f8faf9;
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .login-form select:focus,
+    .login-form input[type="password"]:focus { border-color: var(--green); }
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      background: var(--green-btn);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.2s;
+    }
+    .btn-login:active { background: var(--green-btn-hover); }
+    .login-error {
+      color: #c53030;
+      font-size: 0.85rem;
+      background: #fff5f5;
+      border: 1px solid #fed7d7;
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: none;
+    }
+    .login-back {
+      display: block;
+      margin-top: 16px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    /* ============================================================
+       MAIN APP
+       ============================================================ */
+    #app {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      position: fixed;
+      inset: 0;
+    }
+
+    /* ---- Header ---- */
+    .app-header {
+      height: var(--hdr-h);
+      background: var(--hdr);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+      flex-shrink: 0;
+      padding-top: env(safe-area-inset-top, 0);
+    }
+    .hdr-logo { width: 36px; height: 36px; border-radius: 8px; object-fit: contain; }
+    .hdr-info { flex: 1; }
+    .hdr-brand { font-size: 0.82rem; color: rgba(255,255,255,0.7); font-weight: 500; }
+    .hdr-driver { font-size: 1rem; color: #fff; font-weight: 700; }
+    .hdr-logout {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: #fff;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .hdr-logout:active { background: rgba(255,255,255,0.25); }
+
+    /* ---- Tab Content ---- */
+    .tabs-content {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    .tab-panel {
+      position: absolute;
+      inset: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 12px 12px calc(var(--tab-h) + var(--safe-bottom) + 8px);
+      display: none;
+    }
+    .tab-panel.active { display: block; }
+
+    /* ---- Bottom Tab Bar ---- */
+    .tab-bar {
+      height: calc(var(--tab-h) + var(--safe-bottom));
+      background: #fff;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-shrink: 0;
+      padding-bottom: var(--safe-bottom);
+    }
+    .tab-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      padding: 6px 0 4px;
+      position: relative;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tab-btn .tab-icon { font-size: 1.35rem; }
+    .tab-btn .tab-label { font-size: 0.65rem; font-weight: 600; color: var(--muted); letter-spacing: 0.02em; }
+    .tab-btn.active .tab-label { color: var(--green); }
+    .tab-btn.active .tab-icon { filter: none; }
+    .tab-btn .tab-badge {
+      position: absolute;
+      top: 4px; right: calc(50% - 18px);
+      background: #e53e3e;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      min-width: 16px;
+      height: 16px;
+      border-radius: 8px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+    .tab-btn .tab-badge.visible { display: flex; }
+
+    /* ============================================================
+       SHARED COMPONENTS
+       ============================================================ */
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 12px 0 8px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .empty-state .empty-icon { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+    .spinner-wrap { display: flex; align-items: center; justify-content: center; padding: 40px; gap: 10px; color: var(--muted); font-size: 0.9rem; }
+    .spinner { width: 20px; height: 20px; border: 3px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ============================================================
+       ORDER CARDS
+       ============================================================ */
+    .order-card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 14px 14px 12px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      border: 1px solid var(--border);
+    }
+    .order-card-done {
+      opacity: 0.65;
+      background: #f0faf4;
+      border-color: #b2dfcb;
+    }
+    .oc-client {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .oc-address {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: flex; align-items: flex-start; gap: 4px;
+    }
+    .oc-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 8px 0;
+    }
+    .oc-ticket-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .oc-ticket-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+      padding: 3px 0;
+    }
+    .oc-ticket-name { color: var(--text); font-weight: 500; flex: 1; }
+    .oc-ticket-qty { color: var(--muted); font-size: 0.82rem; margin: 0 8px; white-space: nowrap; }
+    .oc-ticket-total { color: var(--text); font-weight: 600; white-space: nowrap; }
+    .oc-delivery-fee { font-size: 0.82rem; color: #c05621; margin-top: 4px; }
+    .oc-total-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1.5px solid var(--border);
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .oc-notes {
+      font-size: 0.8rem;
+      color: #805ad5;
+      margin-top: 6px;
+      font-style: italic;
+    }
+    .btn-entregado {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      padding: 13px;
+      background: var(--green-btn);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-entregado:active { background: var(--green-btn-hover); transform: scale(0.98); }
+    .oc-done-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #c6f6d5;
+      color: #22543d;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-top: 10px;
+    }
+
+    /* ============================================================
+       MAP TAB
+       ============================================================ */
+    .map-wrap {
+      border-radius: 14px;
+      overflow: hidden;
+      height: 320px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    #deliveryMap { width: 100%; height: 100%; }
+    .map-btn-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+    .btn-gmaps {
+      flex: 1;
+      padding: 13px;
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-gmaps:disabled { opacity: 0.5; cursor: default; }
+    .btn-gmaps:not(:disabled):active { background: #1557b0; }
+    .stop-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      border: 1px solid var(--border);
+    }
+    .stop-card.done { opacity: 0.5; background: #f0faf4; }
+    .stop-num {
+      width: 30px; height: 30px;
+      background: var(--green-btn);
+      color: #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .stop-num.done { background: #a0aec0; }
+    .stop-info { flex: 1; min-width: 0; }
+    .stop-client { font-size: 0.9rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stop-addr { font-size: 0.78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ============================================================
+       CLIENTES TAB
+       ============================================================ */
+    .search-bar {
+      position: relative;
+      margin-bottom: 12px;
+    }
+    .search-bar input {
+      width: 100%;
+      padding: 11px 14px 11px 38px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 0.9rem;
+      background: var(--card);
+      outline: none;
+      -webkit-appearance: none;
+    }
+    .search-bar input:focus { border-color: var(--green); }
+    .search-bar::before {
+      content: '🔍';
+      position: absolute;
+      left: 12px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.85rem;
+      pointer-events: none;
+    }
+    .client-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      border: 1px solid var(--border);
+    }
+    .cc-name { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+    .cc-detail { font-size: 0.82rem; color: var(--muted); display: flex; align-items: flex-start; gap: 4px; margin-bottom: 2px; }
+    .cc-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .cc-btn-call, .cc-btn-wa {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+    }
+    .cc-btn-call { background: #e8f4fd; color: #2b6cb0; }
+    .cc-btn-wa { background: #e8f5e9; color: #2e7d32; }
+
+    /* ============================================================
+       TOAST
+       ============================================================ */
+    .toast-container {
+      position: fixed;
+      top: calc(var(--hdr-h) + 12px);
+      left: 50%; transform: translateX(-50%);
+      z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px;
+      pointer-events: none;
+      width: 90%; max-width: 340px;
+    }
+    .toast {
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-align: center;
+      animation: slideDown 0.3s ease, fadeOut 0.4s ease 2.7s forwards;
+      background: #1a4731; color: #fff;
+    }
+    .toast.error { background: #c53030; }
+    .toast.warning { background: #c05621; }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeOut { to { opacity: 0; } }
+  </style>
+</head>
+<body>
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="loginScreen">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="../logoxela.png" alt="Xela Tortillería" />
+      </div>
+      <h1 class="login-title">Xela Tortillería</h1>
+      <p class="login-sub">Portal del Repartidor</p>
+      <form id="loginForm" class="login-form">
+        <div>
+          <label for="driverSelect">Repartidor</label>
+          <select id="driverSelect">
+            <option value="">— Selecciona tu nombre —</option>
+            <option value="OSCAR">OSCAR</option>
+            <option value="CARLOS">CARLOS</option>
+            <option value="OLIVER">OLIVER</option>
+          </select>
+        </div>
+        <div>
+          <label for="loginPassword">Contraseña</label>
+          <input type="password" id="loginPassword" placeholder="Ingresa la contraseña" autocomplete="current-password" />
+        </div>
+        <div id="loginError" class="login-error">Nombre o contraseña incorrectos.</div>
+        <button type="submit" class="btn-login">Entrar 🚚</button>
+      </form>
+      <a href="../" class="login-back">← Volver al sitio</a>
+    </div>
+  </div>
+
+  <!-- ===================== MAIN APP ===================== -->
+  <div id="app">
+
+    <!-- Header -->
+    <header class="app-header">
+      <img src="../logoxela.png" alt="Xela" class="hdr-logo" />
+      <div class="hdr-info">
+        <div class="hdr-brand">Xela Tortillería</div>
+        <div class="hdr-driver" id="hdrDriverName">—</div>
+      </div>
+      <button class="hdr-logout" id="logoutBtn">Salir 🚪</button>
+    </header>
+
+    <!-- Tab Panels -->
+    <div class="tabs-content">
+
+      <!-- PEDIDOS -->
+      <div class="tab-panel active" id="panel-pedidos">
+        <div class="section-title">Pedidos de Hoy — Pendientes</div>
+        <div id="activeOrdersList">
+          <div class="spinner-wrap"><div class="spinner"></div> Cargando…</div>
+        </div>
+        <div class="section-title" style="margin-top:20px;">✅ Entregados Hoy</div>
+        <div id="doneOrdersList">
+          <div class="empty-state"><span class="empty-icon">📭</span>Sin entregas completadas aún</div>
+        </div>
+      </div>
+
+      <!-- MAPA -->
+      <div class="tab-panel" id="panel-mapa">
+        <div class="section-title">Mis Paradas de Hoy</div>
+        <div class="map-wrap">
+          <div id="deliveryMap"></div>
+        </div>
+        <div class="map-btn-bar">
+          <button class="btn-gmaps" id="openGmapsBtn" disabled>
+            📍 Abrir en Google Maps
+          </button>
+        </div>
+        <div class="section-title">Lista de Paradas</div>
+        <div id="stopsList"></div>
+      </div>
+
+      <!-- CLIENTES -->
+      <div class="tab-panel" id="panel-clientes">
+        <div class="search-bar">
+          <input type="search" id="clientSearch" placeholder="Buscar por nombre o teléfono…" />
+        </div>
+        <div id="clientsList">
+          <div class="spinner-wrap"><div class="spinner"></div> Cargando…</div>
+        </div>
+      </div>
+
+    </div><!-- /tabs-content -->
+
+    <!-- Bottom Tab Bar -->
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="pedidos">
+        <span class="tab-icon">📋</span>
+        <span class="tab-label">Pedidos</span>
+        <span class="tab-badge" id="pedidosBadge"></span>
+      </button>
+      <button class="tab-btn" data-tab="mapa">
+        <span class="tab-icon">🗺️</span>
+        <span class="tab-label">Mapa</span>
+      </button>
+      <button class="tab-btn" data-tab="clientes">
+        <span class="tab-icon">👥</span>
+        <span class="tab-label">Clientes</span>
+      </button>
+    </nav>
+
+  </div><!-- /app -->
+
+  <!-- ===================== SCRIPTS ===================== -->
+  <!-- Firebase SDK (compat) -->
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <!-- Leaflet JS -->
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script defer>
+    // ==========================================
+    // CONSTANTS
+    // ==========================================
+    const DRIVER_PASSWORD = 'xela2024';
+    const DRIVERS = ['OSCAR', 'CARLOS', 'OLIVER'];
+    const SESSION_KEY = 'xela_driver_session';
+    const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 hours
+
+    const PRODUCTS = [
+      { id: 'maiz',       name: 'Tortilla de Maíz',         price: 15, unit: 'docena', emoji: '🌽' },
+      { id: 'moringa',    name: 'Tortilla de Moringa',       price: 30, unit: 'docena', emoji: '🌿' },
+      { id: 'nopal',      name: 'Tortilla de Nopal',         price: 25, unit: 'docena', emoji: '🌵' },
+      { id: 'pasilla',    name: 'Tortilla de Chile Pasilla', price: 25, unit: 'docena', emoji: '🌶️' },
+      { id: 'agua_medio', name: 'Agua ½ litro',              price: 35, unit: 'pieza',  emoji: '💧' },
+      { id: 'agua_litro', name: 'Agua 1 litro',              price: 45, unit: 'pieza',  emoji: '🚰' },
+      { id: 'salsa',      name: 'Salsa',                     price: 35, unit: 'pieza',  emoji: '🫙' },
+    ];
+
+    const ZONE_CENTER = { lat: 19.4333, lng: -100.3667 };
+    const ZONE_RADIUS_KM = 2;
+    const MAPS_API_KEY = 'AIzaSyCwpbualC_jZe2tCwJB8dna0C01o10GqgI';
+
+    // ==========================================
+    // STATE
+    // ==========================================
+    let loggedInDriver = null;
+    let db = null;
+    let _orders = [];       // all orders for today assigned to this driver
+    let _clients = [];      // all clients
+    let _unsubOrders = null;
+    let _unsubClients = null;
+    let _mapInstance = null;
+    let _mapInitialized = false;
+
+    // ==========================================
+    // UTILS
+    // ==========================================
+    function today() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function fmt(n) {
+      return '$' + parseFloat(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function esc(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function toast(msg, type = 'success') {
+      let container = document.getElementById('toastContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        container.id = 'toastContainer';
+        document.body.appendChild(container);
+      }
+      const t = document.createElement('div');
+      t.className = 'toast' + (type === 'error' ? ' error' : type === 'warning' ? ' warning' : '');
+      t.textContent = msg;
+      container.appendChild(t);
+      setTimeout(() => t.remove(), 3100);
+    }
+
+    function haversine(a, b) {
+      const R = 6371;
+      const dLat = (b.lat - a.lat) * Math.PI / 180;
+      const dLng = (b.lng - a.lng) * Math.PI / 180;
+      const h = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180) * Math.cos(b.lat*Math.PI/180) * Math.sin(dLng/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h));
+    }
+
+    // ==========================================
+    // SESSION
+    // ==========================================
+    function saveSession(driver) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ driver, ts: Date.now() }));
+    }
+
+    function clearSession() {
+      localStorage.removeItem(SESSION_KEY);
+    }
+
+    function restoreSession() {
+      try {
+        const s = localStorage.getItem(SESSION_KEY);
+        if (!s) return null;
+        const { driver, ts } = JSON.parse(s);
+        if (DRIVERS.includes(driver) && Date.now() - ts < SESSION_TTL) return driver;
+      } catch (_) {}
+      return null;
+    }
+
+    // ==========================================
+    // FIREBASE INIT
+    // ==========================================
+    function initFirebase() {
+      if (db) return;
+      firebase.initializeApp({
+        apiKey: 'AIzaSyA5orV2cj41j6YZHi7Tn-fX62rM3zOLUfI',
+        authDomain: 'xela-8a91d.firebaseapp.com',
+        projectId: 'xela-8a91d',
+        storageBucket: 'xela-8a91d.firebasestorage.app',
+        messagingSenderId: '1024661076424',
+        appId: '1:1024661076424:web:f889b065e1afb1c2cfe8fd',
+      });
+      db = firebase.firestore();
+    }
+
+    // ==========================================
+    // LOGIN
+    // ==========================================
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const driver = document.getElementById('driverSelect').value;
+      const pw = document.getElementById('loginPassword').value;
+      const err = document.getElementById('loginError');
+      if (!driver || !DRIVERS.includes(driver) || pw !== DRIVER_PASSWORD) {
+        err.style.display = 'block';
+        document.getElementById('loginPassword').value = '';
+        return;
+      }
+      err.style.display = 'none';
+      saveSession(driver);
+      enterApp(driver);
+    });
+
+    function enterApp(driver) {
+      loggedInDriver = driver;
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      document.getElementById('hdrDriverName').textContent = driver;
+      initFirebase();
+      startListeners();
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      if (!confirm('¿Cerrar sesión?')) return;
+      clearSession();
+      loggedInDriver = null;
+      if (_unsubOrders) { _unsubOrders(); _unsubOrders = null; }
+      if (_unsubClients) { _unsubClients(); _unsubClients = null; }
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('loginPassword').value = '';
+      document.getElementById('driverSelect').value = '';
+    });
+
+    // ==========================================
+    // FIRESTORE LISTENERS
+    // ==========================================
+    function startListeners() {
+      const todayStr = today();
+
+      // Listen to orders for this driver today
+      _unsubOrders = db.collection('pedidos')
+        .where('date', '==', todayStr)
+        .where('repartidor', '==', loggedInDriver)
+        .onSnapshot(snap => {
+          _orders = [];
+          snap.forEach(doc => _orders.push({ _docId: doc.id, ...doc.data() }));
+          renderPedidos();
+          updatePedidosBadge();
+          if (_mapInitialized) refreshMap();
+        }, err => {
+          console.error('Error pedidos:', err);
+          _orders = [];
+          renderPedidos();
+        });
+
+      // Listen to all clients
+      _unsubClients = db.collection('clientes').onSnapshot(snap => {
+        _clients = [];
+        snap.forEach(doc => _clients.push({ _docId: doc.id, ...doc.data() }));
+        renderClientes();
+        if (_mapInitialized) refreshMap();
+      }, err => {
+        console.error('Error clientes:', err);
+        _clients = [];
+        renderClientes();
+      });
+    }
+
+    // ==========================================
+    // TABS
+    // ==========================================
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('panel-' + tab).classList.add('active');
+        if (tab === 'mapa') initMap();
+        if (tab === 'clientes') renderClientes();
+      });
+    });
+
+    // ==========================================
+    // PEDIDOS TAB
+    // ==========================================
+    function renderPedidos() {
+      const active = _orders.filter(o => o.status === 'pendiente');
+      const done = _orders.filter(o => o.status === 'entregado');
+
+      // Active orders
+      const activeEl = document.getElementById('activeOrdersList');
+      if (active.length === 0) {
+        activeEl.innerHTML = '<div class="empty-state"><span class="empty-icon">🎉</span>Sin pedidos pendientes</div>';
+      } else {
+        activeEl.innerHTML = active.map(o => renderOrderCard(o, false)).join('');
+      }
+
+      // Done orders
+      const doneEl = document.getElementById('doneOrdersList');
+      if (done.length === 0) {
+        doneEl.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span>Sin entregas completadas aún</div>';
+      } else {
+        doneEl.innerHTML = done.map(o => renderOrderCard(o, true)).join('');
+      }
+    }
+
+    function renderOrderCard(o, isDone) {
+      const items = o.items || (o.productName ? [{ productId: o.productId, productName: o.productName, qty: o.qty, price: o.price || 0, total: o.total }] : []);
+      const orderTotal = o.total || items.reduce((a, i) => a + (i.total || 0), 0);
+
+      const ticketRows = items.map(i => {
+        const prod = PRODUCTS.find(p => p.id === i.productId);
+        const unit = prod ? prod.unit : 'doc';
+        const unitPrice = i.price || (prod ? prod.price : 0);
+        const lineTotal = i.total || i.qty * unitPrice;
+        const qty = i.qty || 0;
+        return `<div class="oc-ticket-row">
+          <span class="oc-ticket-name">${esc((i.productName || '').replace('Tortilla de ', ''))}</span>
+          <span class="oc-ticket-qty">${qty} ${unit}${qty !== 1 ? 's' : ''} × ${fmt(unitPrice)}</span>
+          <span class="oc-ticket-total">${fmt(lineTotal)}</span>
+        </div>`;
+      }).join('');
+
+      const deliveryHtml = o.deliveryFee > 0
+        ? `<div class="oc-delivery-fee">🚚 Envío: ${fmt(o.deliveryFee)}</div>` : '';
+      const notesHtml = o.notes ? `<div class="oc-notes">📝 ${esc(o.notes)}</div>` : '';
+      const docIdAttr = esc(o._docId || o.id || '');
+
+      const actionHtml = isDone
+        ? `<div class="oc-done-badge">✅ Entregado</div>`
+        : `<button class="btn-entregado" onclick="markDelivered('${docIdAttr}', '${esc(o.clientName || '')}')">Entregado ✅</button>`;
+
+      return `<div class="order-card${isDone ? ' order-card-done' : ''}">
+        <div class="oc-client">👤 ${esc(o.clientName || '—')}</div>
+        ${o.clientAddress ? `<div class="oc-address">📍 <span>${esc(o.clientAddress)}</span></div>` : ''}
+        <hr class="oc-divider" />
+        <div class="oc-ticket-title">🧾 Ticket de entrega</div>
+        ${ticketRows}
+        ${deliveryHtml}
+        <div class="oc-total-line"><span>Total</span><span>${fmt(orderTotal)}</span></div>
+        ${notesHtml}
+        ${actionHtml}
+      </div>`;
+    }
+
+    function updatePedidosBadge() {
+      const pending = _orders.filter(o => o.status === 'pendiente').length;
+      const badge = document.getElementById('pedidosBadge');
+      if (pending > 0) {
+        badge.textContent = pending;
+        badge.classList.add('visible');
+      } else {
+        badge.classList.remove('visible');
+      }
+    }
+
+    function markDelivered(docId, clientName) {
+      if (!docId) { toast('ID de pedido inválido', 'error'); return; }
+      db.collection('pedidos').doc(docId).update({
+        status: 'entregado',
+        deliveredDate: today(),
+        deliveredBy: loggedInDriver,
+      }).then(() => {
+        toast(`✅ Entrega de ${clientName} completada`);
+      }).catch(err => {
+        console.error('Error marking delivered:', err);
+        toast('Error al actualizar el pedido', 'error');
+      });
+    }
+
+    // ==========================================
+    // MAPA TAB
+    // ==========================================
+    function initMap() {
+      if (_mapInitialized) { refreshMap(); return; }
+      _mapInstance = L.map('deliveryMap').setView([ZONE_CENTER.lat, ZONE_CENTER.lng], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(_mapInstance);
+
+      // Zone circle
+      L.circle([ZONE_CENTER.lat, ZONE_CENTER.lng], {
+        radius: ZONE_RADIUS_KM * 1000,
+        color: '#276749', fillColor: '#276749', fillOpacity: 0.07,
+        weight: 2, dashArray: '6, 4',
+      }).addTo(_mapInstance).bindPopup(`<strong>Zona de cobertura</strong><br/>Radio: ${ZONE_RADIUS_KM} km`);
+
+      _mapInitialized = true;
+      refreshMap();
+    }
+
+    let _mapMarkers = [];
+    let _mapStops = [];
+
+    function refreshMap() {
+      if (!_mapInstance) return;
+
+      // Clear old markers
+      _mapMarkers.forEach(m => _mapInstance.removeLayer(m));
+      _mapMarkers = [];
+
+      const todayStr = today();
+      const pendingOrders = _orders.filter(o => o.status === 'pendiente');
+
+      // Build stops
+      _mapStops = [];
+      pendingOrders.forEach(o => {
+        const client = _clients.find(c => c.id === o.clientId);
+        if (client && client.lat && client.lng) {
+          _mapStops.push({ order: o, client });
+        }
+      });
+
+      // Sort by nearest-neighbor from GPS or ZONE_CENTER
+      if (_mapStops.length > 1) {
+        const origin = _userLocation || ZONE_CENTER;
+        _mapStops = nearestNeighbor(_mapStops, origin);
+      }
+
+      // Add markers
+      _mapStops.forEach((s, i) => {
+        const icon = L.divIcon({
+          html: `<div style="background:#276749;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);">${i+1}</div>`,
+          className: '', iconSize: [28, 28], iconAnchor: [14, 14],
+        });
+        const items = s.order.items || [];
+        const prods = items.map(it => `${(it.productName||'').replace('Tortilla de ','')} ×${it.qty}`).join(', ');
+        const m = L.marker([s.client.lat, s.client.lng], { icon })
+          .addTo(_mapInstance)
+          .bindPopup(`<strong>${i+1}. ${s.client.name}</strong><br/>${prods}<br/>📍 ${s.client.address||''}`);
+        _mapMarkers.push(m);
+      });
+
+      // Fit map to markers
+      if (_mapStops.length > 0) {
+        const latlngs = _mapStops.map(s => [s.client.lat, s.client.lng]);
+        _mapInstance.fitBounds(L.latLngBounds(latlngs).pad(0.2));
+      }
+
+      renderStopsList();
+
+      const gmapsBtn = document.getElementById('openGmapsBtn');
+      gmapsBtn.disabled = _mapStops.length === 0;
+    }
+
+    function nearestNeighbor(stops, origin) {
+      const remaining = [...stops];
+      const ordered = [];
+      let current = origin;
+      while (remaining.length > 0) {
+        let nearest = 0, nearestDist = Infinity;
+        for (let i = 0; i < remaining.length; i++) {
+          const d = haversine(current, { lat: remaining[i].client.lat, lng: remaining[i].client.lng });
+          if (d < nearestDist) { nearestDist = d; nearest = i; }
+        }
+        const s = remaining.splice(nearest, 1)[0];
+        ordered.push(s);
+        current = { lat: s.client.lat, lng: s.client.lng };
+      }
+      return ordered;
+    }
+
+    let _userLocation = null;
+
+    // Try to get user's GPS location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        _userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (_mapInitialized) refreshMap();
+      }, () => {}, { timeout: 8000 });
+    }
+
+    function renderStopsList() {
+      const el = document.getElementById('stopsList');
+      if (_mapStops.length === 0) {
+        el.innerHTML = '<div class="empty-state"><span class="empty-icon">🗺️</span>Sin paradas pendientes hoy</div>';
+        return;
+      }
+      el.innerHTML = _mapStops.map((s, i) => `
+        <div class="stop-card">
+          <div class="stop-num">${i+1}</div>
+          <div class="stop-info">
+            <div class="stop-client">${esc(s.client.name)}</div>
+            <div class="stop-addr">📍 ${esc(s.client.address || 'Sin dirección')}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('openGmapsBtn').addEventListener('click', openGoogleMaps);
+
+    function openGoogleMaps() {
+      if (_mapStops.length === 0) return;
+
+      // Try to use GPS as origin, fallback to ZONE_CENTER
+      const origin = _userLocation
+        ? `${_userLocation.lat},${_userLocation.lng}`
+        : `${ZONE_CENTER.lat},${ZONE_CENTER.lng}`;
+
+      if (_mapStops.length === 1) {
+        const dest = `${_mapStops[0].client.lat},${_mapStops[0].client.lng}`;
+        window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`, '_blank');
+        return;
+      }
+
+      const last = _mapStops[_mapStops.length - 1];
+      const dest = `${last.client.lat},${last.client.lng}`;
+      const waypoints = _mapStops.slice(0, -1).map(s => `${s.client.lat},${s.client.lng}`).join('|');
+      window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&waypoints=${waypoints}&travelmode=driving`, '_blank');
+    }
+
+    // ==========================================
+    // CLIENTES TAB
+    // ==========================================
+    function renderClientes() {
+      const q = (document.getElementById('clientSearch')?.value || '').toLowerCase();
+      const filtered = q
+        ? _clients.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').replace(/\D/g,'').includes(q.replace(/\D/g,'')))
+        : _clients;
+
+      const el = document.getElementById('clientsList');
+      if (filtered.length === 0 && _clients.length === 0) {
+        el.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div> Cargando…</div>';
+        return;
+      }
+      if (filtered.length === 0) {
+        el.innerHTML = '<div class="empty-state"><span class="empty-icon">🔍</span>Sin resultados</div>';
+        return;
+      }
+
+      const sorted = [...filtered].sort((a, b) => (a.name||'').localeCompare(b.name||''));
+      el.innerHTML = sorted.map(c => {
+        const phone = (c.phone || '').replace(/\D/g, '');
+        const callBtn = c.phone ? `<a href="tel:${esc(c.phone)}" class="cc-btn-call">📞 Llamar</a>` : '';
+        const waBtn = phone ? `<a href="https://wa.me/52${phone}" target="_blank" class="cc-btn-wa">💬 WhatsApp</a>` : '';
+        return `<div class="client-card">
+          <div class="cc-name">👤 ${esc(c.name || '—')}</div>
+          ${c.phone ? `<div class="cc-detail">📱 ${esc(c.phone)}</div>` : ''}
+          ${c.address ? `<div class="cc-detail">📍 <span>${esc(c.address)}</span></div>` : ''}
+          ${(callBtn || waBtn) ? `<div class="cc-actions">${callBtn}${waBtn}</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    document.getElementById('clientSearch').addEventListener('input', renderClientes);
+
+    // ==========================================
+    // BOOTSTRAP
+    // ==========================================
+    (function init() {
+      const driver = restoreSession();
+      if (driver) {
+        enterApp(driver);
+      }
+    })();
+  </script>
+
+</body>
+</html>
