@@ -182,7 +182,7 @@ function _refreshUI(key) {
 // ---- Storage API (replaces localStorage) ----
 function getData(key, def) {
   const val = _cache[key];
-  if (val !== undefined) return val;
+  if (val !== undefined) return Array.isArray(val) ? [...val] : val;
   return def;
 }
 
@@ -201,9 +201,17 @@ function setData(key, val) {
 
   const validItems = val.filter(d => d.id !== undefined && d.id !== null);
   const newIds = new Set(validItems.map(d => String(d.id)));
+  const prevMap = new Map(
+    prev.filter(d => d.id !== undefined && d.id !== null).map(d => [String(d.id), d])
+  );
+  // Only write items that are new or have a different object reference (changed)
+  const toWrite = validItems.filter(item => prevMap.get(String(item.id)) !== item);
+  const toDelete = prev.filter(d => d.id !== undefined && d.id !== null && !newIds.has(String(d.id)));
+  if (toWrite.length === 0 && toDelete.length === 0) return;
+
   const batch = db.batch();
-  validItems.forEach(item => batch.set(db.collection(colName).doc(String(item.id)), item));
-  prev.forEach(item => { if (item.id !== undefined && item.id !== null && !newIds.has(String(item.id))) batch.delete(db.collection(colName).doc(String(item.id))); });
+  toWrite.forEach(item => batch.set(db.collection(colName).doc(String(item.id)), item));
+  toDelete.forEach(item => batch.delete(db.collection(colName).doc(String(item.id))));
   batch.commit().catch(e => console.error('Firestore write error [' + colName + ']:', e));
 }
 
@@ -1277,7 +1285,7 @@ function updateInvQty(id) {
   if (isNaN(newQty) || newQty < 0) { toast('Cantidad inválida', 'error'); return; }
   const inventory = getData('inventory', []);
   const idx = inventory.findIndex(i => i.id === id);
-  if (idx >= 0) { inventory[idx].qty = newQty; setData('inventory', inventory); }
+  if (idx >= 0) { setData('inventory', inventory.map((item, i) => i === idx ? { ...item, qty: newQty } : item)); }
   toast('Stock actualizado ✅');
   renderInventario();
   updateLowStockBadge();
@@ -1678,9 +1686,8 @@ function saveRecurring(clientId, event) {
   const clients = getData('clients', []);
   const idx = clients.findIndex(c => c.id === clientId);
   if (idx < 0) return;
-  if (!clients[idx].recurringOrders) clients[idx].recurringOrders = [];
-  clients[idx].recurringOrders.push({ productId, qty, day });
-  setData('clients', clients);
+  const updated = { ...clients[idx], recurringOrders: [...(clients[idx].recurringOrders || []), { productId, qty, day }] };
+  setData('clients', clients.map(c => c.id === clientId ? updated : c));
   toast('Pedido recurrente guardado ✅');
   renderClientList();
 }
@@ -1689,8 +1696,8 @@ function deleteRecurring(clientId, recurringIdx) {
   const clients = getData('clients', []);
   const idx = clients.findIndex(c => c.id === clientId);
   if (idx < 0) return;
-  clients[idx].recurringOrders = (clients[idx].recurringOrders || []).filter((_, i) => i !== recurringIdx);
-  setData('clients', clients);
+  const updated = { ...clients[idx], recurringOrders: (clients[idx].recurringOrders || []).filter((_, i) => i !== recurringIdx) };
+  setData('clients', clients.map(c => c.id === clientId ? updated : c));
   toast('Pedido recurrente eliminado', 'warning');
   renderClientList();
 }
@@ -1831,10 +1838,9 @@ function markDelivered(id) {
   const orders = getData('orders', []);
   const idx = orders.findIndex(o => o.id === id);
   if (idx < 0) return;
-  orders[idx].status = 'entregado';
-  orders[idx].deliveredDate = today();
-  setData('orders', orders);
-  toast(`Entrega de ${orders[idx].clientName} completada ✅`);
+  const updated = { ...orders[idx], status: 'entregado', deliveredDate: today() };
+  setData('orders', orders.map((o, i) => i === idx ? updated : o));
+  toast(`Entrega de ${updated.clientName} completada ✅`);
   renderCRM();
   // Sync map route stops if active
   optimizedStops.forEach(s => { if (s.order.id === id) s.order.status = 'entregado'; });
@@ -1904,10 +1910,8 @@ function confirmCancelOrder() {
   const orders = getData('orders', []);
   const idx = orders.findIndex(o => o.id === _cancelOrderId);
   if (idx >= 0) {
-    orders[idx].status = 'cancelado';
-    orders[idx].cancelReason = reason || '';
-    orders[idx].cancelDate = new Date().toISOString();
-    setData('orders', orders);
+    const updated = { ...orders[idx], status: 'cancelado', cancelReason: reason || '', cancelDate: new Date().toISOString() };
+    setData('orders', orders.map((o, i) => i === idx ? updated : o));
   }
   closeCancelModal();
   toast('Pedido cancelado', 'warning');
