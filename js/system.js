@@ -6,6 +6,11 @@
 const PASSWORDS = { control: 'xela2024', equipo: 'xelaempleado' };
 let currentRole = null;
 
+// ---- Mobile detection ----
+function isMobileDevice() {
+  return window.innerWidth < 768 || ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+}
+
 // ---- Session persistence ----
 const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 hours in ms
 const SESSION_KEY = 'xela_session';
@@ -154,6 +159,14 @@ function startTodayListeners() {
 // ---- Re-render UI when Firestore data changes from another device ----
 function _refreshUI(key) {
   if (!currentRole) return;
+  // Mobile dashboard (control role on mobile)
+  const mobDash = document.getElementById('mobileDashboard');
+  if (mobDash && mobDash.style.display !== 'none') {
+    if (['sales', 'transactions', 'todaySales', 'todayTransactions'].includes(key)) {
+      try { renderMobileDashboard(); } catch (e) { console.error('Mobile UI refresh error:', e); }
+    }
+    return;
+  }
   const dash = document.getElementById('dashboard');
   if (!dash || dash.style.display === 'none') return;
   try {
@@ -225,6 +238,10 @@ function esc(str) {
 // ---- Conversión kg → docenas (1 kg masa = 4 docenas) ----
 const KG_TO_DOCENAS = 4;
 
+// ---- Margen de contribución estimado (% del precio de venta) ----
+const COGS_PCT = 0.45;   // COGS used in desktop Resumen
+const MARGIN_PCT = 0.55; // gross margin used in mobile break-even
+
 // ---- Pluralización de unidades (español) ----
 function pluralUnit(unit, qty) { return qty === 1 ? unit : unit + 's'; }
 
@@ -284,9 +301,14 @@ document.querySelectorAll('.role-option input[name="loginRole"]').forEach(radio 
 function enterSystem(role) {
   currentRole = role;
   document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('dashboard').style.display = 'flex';
-  applyRoleAccess(role);
-  initDashboard();
+  if (role === 'control' && isMobileDevice()) {
+    document.getElementById('mobileDashboard').style.display = 'flex';
+    initMobileDashboard();
+  } else {
+    document.getElementById('dashboard').style.display = 'flex';
+    applyRoleAccess(role);
+    initDashboard();
+  }
   startFirestoreSync();
   initFCM();
 }
@@ -526,8 +548,179 @@ function renderResumen() {
 }
 
 // ==========================================
-// MÓDULO: PUNTO DE VENTA
+// MOBILE DASHBOARD (Control role, mobile)
 // ==========================================
+function initMobileDashboard() {
+  // Set date in header
+  const d = new Date();
+  const mobDateEl = document.getElementById('mobDate');
+  if (mobDateEl) {
+    mobDateEl.textContent = d.toLocaleDateString('es-MX', { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  // Logout button
+  const logoutBtn = document.getElementById('mobLogoutBtn');
+  if (logoutBtn && !logoutBtn._bound) {
+    logoutBtn._bound = true;
+    logoutBtn.addEventListener('click', () => {
+      if (confirm('¿Cerrar sesión?')) {
+        clearSession();
+        currentRole = null;
+        _moduleInit.clear();
+        document.getElementById('mobileDashboard').style.display = 'none';
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('loginPassword').value = '';
+        document.getElementById('loginError').style.display = 'none';
+      }
+    });
+  }
+
+  renderMobileDashboard();
+}
+
+function renderMobileDashboard() {
+  // Restart today listeners if date rolled over
+  if (_todayListenerDate && _todayListenerDate !== today()) {
+    startTodayListeners();
+  }
+
+  const todaySales = getData('todaySales', []);
+  const todayTx    = getData('todayTransactions', []);
+  const loading    = !_loaded.todaySales || !_loaded.todayTransactions;
+
+  const spinnerHTML = '<span class="mob-spinner"></span>';
+
+  // --- Ingresos & Gastos ---
+  const ingresos = loading ? null :
+    todaySales.reduce((a, s) => a + s.total, 0) +
+    todayTx.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
+  const gastos = loading ? null :
+    todayTx.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
+  const utilidad = loading ? null : ingresos - gastos;
+
+  const ingresosEl = document.getElementById('mob-ingresos');
+  const gastosEl   = document.getElementById('mob-gastos');
+  const utilidadEl = document.getElementById('mob-utilidad');
+  if (ingresosEl) ingresosEl.innerHTML = loading ? spinnerHTML : fmt(ingresos);
+  if (gastosEl)   gastosEl.innerHTML   = loading ? spinnerHTML : fmt(gastos);
+  if (utilidadEl) {
+    if (loading) {
+      utilidadEl.innerHTML = spinnerHTML;
+    } else {
+      utilidadEl.textContent = fmt(utilidad);
+      utilidadEl.style.color = utilidad >= 0 ? 'var(--sys-green)' : 'var(--sys-red)';
+    }
+  }
+
+  // --- Efectivo en Caja (all-time) ---
+  const cajaEl = document.getElementById('mob-caja');
+  if (cajaEl) {
+    if (_loaded.sales && _loaded.transactions) {
+      const allSales = getData('sales', []);
+      const allTx    = getData('transactions', []);
+      const allIngresos = allSales.reduce((a, s) => a + s.total, 0) +
+                          allTx.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
+      const allGastos   = allTx.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
+      cajaEl.textContent = fmt(allIngresos - allGastos);
+    } else {
+      cajaEl.innerHTML = spinnerHTML;
+    }
+  }
+
+  // --- Punto de Equilibrio ---
+  const barEl   = document.getElementById('mobEquilibrioBar');
+  const labelEl = document.getElementById('mobEquilibrioLabel');
+  if (barEl && labelEl) {
+    if (loading) {
+      barEl.style.width = '0%';
+      labelEl.textContent = 'Calculando…';
+    } else {
+      const avgPrice   = PRODUCTS.reduce((a, p) => a + p.price, 0) / PRODUCTS.length;
+      const margin     = avgPrice * MARGIN_PCT;
+      const breakEvenDocenas = gastos > 0 && margin > 0 ? gastos / margin : 0;
+      const soldDocenas = todaySales.reduce((acc, s) => {
+        if (s.items && Array.isArray(s.items)) {
+          s.items.forEach(i => {
+            const prod = PRODUCTS.find(p => p.name === i.name || p.id === i.productId);
+            if (prod && prod.unit === 'docena') acc += i.qty;
+          });
+        } else if (s.productId) {
+          const prod = PRODUCTS.find(p => p.id === s.productId);
+          if (prod && prod.unit === 'docena') acc += (s.qty || 0);
+        }
+        return acc;
+      }, 0);
+      const pct = breakEvenDocenas > 0
+        ? Math.min(100, Math.round((soldDocenas / breakEvenDocenas) * 100))
+        : (gastos === 0 ? 100 : 0);
+      barEl.style.width = pct + '%';
+      if (breakEvenDocenas > 0) {
+        labelEl.textContent = soldDocenas.toFixed(1) + ' / ' + breakEvenDocenas.toFixed(1) + ' docenas (' + pct + '%)';
+      } else {
+        labelEl.textContent = gastos === 0 ? 'Sin gastos registrados' : 'En equilibrio ✅';
+      }
+    }
+  }
+
+  // --- Más Vendida ---
+  const topEmojiEl   = document.getElementById('mobTopEmoji');
+  const topNameEl    = document.getElementById('mobTopProductName');
+  if (topEmojiEl && topNameEl) {
+    if (_loaded.sales) {
+      const allSales = getData('sales', []);
+      const weekAgo  = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekSales = allSales.filter(s => new Date(s.date) >= weekAgo);
+      const byProduct = {};
+      weekSales.forEach(s => {
+        if (s.items && Array.isArray(s.items)) {
+          s.items.forEach(i => { byProduct[i.name] = (byProduct[i.name] || 0) + i.qty; });
+        } else if (s.productName) {
+          byProduct[s.productName] = (byProduct[s.productName] || 0) + (s.qty || 0);
+        }
+      });
+      const topEntry = Object.entries(byProduct).sort((a, b) => b[1] - a[1])[0];
+      if (topEntry) {
+        const prod = PRODUCTS.find(p => p.name === topEntry[0]);
+        topEmojiEl.textContent = prod ? prod.emoji : '🥇';
+        topNameEl.textContent  = topEntry[0].replace('Tortilla de ', '');
+      } else {
+        topEmojiEl.textContent = '🥇';
+        topNameEl.textContent  = '—';
+      }
+    } else {
+      topEmojiEl.textContent = '🥇';
+      topNameEl.innerHTML    = spinnerHTML;
+    }
+  }
+
+  // --- Last 5 sales feed ---
+  const feedEl = document.getElementById('mobSalesFeed');
+  if (feedEl) {
+    if (loading) {
+      feedEl.innerHTML = '<p class="mob-empty"><span class="mob-spinner"></span></p>';
+    } else {
+      const last5 = [...todaySales].reverse().slice(0, 5);
+      if (last5.length === 0) {
+        feedEl.innerHTML = '<p class="mob-empty">Sin ventas hoy</p>';
+      } else {
+        feedEl.innerHTML = last5.map(s => {
+          const payIcon = s.payment === 'transferencia' ? '📲' : '💵';
+          const ticket  = s.ticketId || '—';
+          const time    = s.time || '';
+          return `<div class="mob-sale-item">
+            <div class="mob-sale-left">
+              <span class="mob-sale-ticket">🧾 ${esc(ticket)}</span>
+              <span class="mob-sale-meta"><span>${time}</span><span>${payIcon} ${esc(s.payment || 'efectivo')}</span></span>
+            </div>
+            <span class="mob-sale-total">${fmt(s.total)}</span>
+          </div>`;
+        }).join('');
+      }
+    }
+  }
+}
+
+
 let currentOrder = [];
 let paymentMethod = 'efectivo';
 
