@@ -2847,6 +2847,16 @@ async function initFCM() {
     return;
   }
 
+  // Only register FCM tokens when running as an installed PWA (home-screen shortcut).
+  // Regular desktop-browser sessions must not register so that push notifications
+  // are delivered exclusively to the installed iPhone PWA.
+  const isStandalonePWA = navigator.standalone === true ||
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  if (!isStandalonePWA) {
+    console.log('[FCM] Not running as an installed PWA — skipping FCM token registration.');
+    return;
+  }
+
   // Firebase Messaging must be available (loaded via SDK)
   if (typeof firebase === 'undefined') {
     console.warn('[FCM] firebase is not defined — SDK not loaded yet — aborting.');
