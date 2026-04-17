@@ -180,6 +180,8 @@ exports.onNewOrder = functions.firestore
   .onCreate(async (snap) => {
     const order = snap.data();
     if (order.status !== 'pendiente') return;
+    if (order.notified === true) return;
+    await snap.ref.update({ notified: true });
     const subscriptions = await getAllSubscriptions();
     await sendNotification(
       subscriptions,
