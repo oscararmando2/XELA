@@ -48,6 +48,68 @@
     </div>
   </div>
 
+  <!-- ===================== MOBILE DASHBOARD (Control, mobile only) ===================== -->
+  <div id="mobileDashboard" class="mob-dashboard" style="display:none;">
+    <header class="mob-header">
+      <img src="../logoxela.png" alt="Xela Tortillería" class="mob-logo" />
+      <div class="mob-header-text">
+        <span class="mob-title">Xela Tortillería</span>
+        <span class="mob-date" id="mobDate"></span>
+      </div>
+      <button id="mobLogoutBtn" class="mob-logout-btn" aria-label="Cerrar sesión">🚪</button>
+    </header>
+
+    <main class="mob-main">
+      <!-- Stat cards -->
+      <div class="mob-cards">
+        <div class="mob-card mob-card-green">
+          <div class="mob-card-label">💵 Ingresos Hoy</div>
+          <div class="mob-card-value" id="mob-ingresos">$0</div>
+        </div>
+        <div class="mob-card mob-card-red">
+          <div class="mob-card-label">🧾 Gastos Hoy</div>
+          <div class="mob-card-value" id="mob-gastos">$0</div>
+        </div>
+        <div class="mob-card mob-card-blue">
+          <div class="mob-card-label">🏦 Efectivo en Caja</div>
+          <div class="mob-card-value" id="mob-caja">$0</div>
+        </div>
+        <div class="mob-card mob-card-yellow">
+          <div class="mob-card-label">📊 Utilidad del Día</div>
+          <div class="mob-card-value" id="mob-utilidad">$0</div>
+        </div>
+      </div>
+
+      <!-- Break-even progress -->
+      <div class="mob-section">
+        <div class="mob-section-title">🎯 Punto de Equilibrio</div>
+        <div class="mob-progress-track">
+          <div class="mob-progress-fill" id="mobEquilibrioBar" style="width:0%"></div>
+        </div>
+        <div class="mob-progress-label" id="mobEquilibrioLabel">Calculando…</div>
+      </div>
+
+      <!-- Top product -->
+      <div class="mob-top-product">
+        <span class="mob-tp-emoji" id="mobTopEmoji">🥇</span>
+        <div class="mob-tp-info">
+          <span class="mob-tp-label">Más Vendida</span>
+          <span class="mob-tp-name" id="mobTopProductName">—</span>
+        </div>
+      </div>
+
+      <!-- Last 5 sales feed -->
+      <div class="mob-section">
+        <div class="mob-section-title">🛒 Últimas Ventas</div>
+        <div class="mob-sales-feed" id="mobSalesFeed">
+          <p class="mob-empty">Sin ventas hoy</p>
+        </div>
+      </div>
+    </main>
+
+    <div class="mob-safe-area"></div>
+  </div>
+
   <!-- ===================== DASHBOARD ===================== -->
   <div id="dashboard" class="dashboard" style="display:none;">
 
