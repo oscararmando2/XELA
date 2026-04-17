@@ -1708,10 +1708,12 @@ function initCRM() {
     const totalDeliveryFee = deliveryFee + zoneExtra;
     const orderTotal = subtotal + totalDeliveryFee;
     const orders = getData('orders', []);
+    const repartidor = (document.getElementById('orderRepartidor')?.value || '').trim();
     orders.push({
       id: uid(), clientId: client.id, clientName: client.name, clientAddress: client.address || '',
       items, subtotal, deliveryFee: totalDeliveryFee, outOfZone: outOfZone || false, total: orderTotal, date, status: 'pendiente',
       notes: document.getElementById('orderNotes').value.trim(),
+      repartidor: repartidor || null,
     });
     setData('orders', orders);
     this.reset();
@@ -2105,11 +2107,13 @@ function renderOrderList() {
       ? `<div class="order-detail" style="color:var(--sys-orange)">🚚 Envío: ${fmt(o.deliveryFee)}</div>`
       : (o.subtotal !== undefined ? `<div class="order-detail" style="color:var(--sys-green)">🚚 Envío gratis 🎉</div>` : '');
     const zoneHtml = o.outOfZone ? `<div class="order-zone-badge">⚠️ Fuera de zona — envío adicional $20</div>` : '';
+    const repartidorHtml = o.repartidor ? `<div class="order-detail">🚚 Repartidor: <strong>${esc(o.repartidor)}</strong></div>` : '';
     return `<div class="order-card-new">
       <div class="order-card-body">
         <div class="order-client-name">👤 ${esc(o.clientName)}</div>
         ${o.clientAddress ? `<div class="order-detail">📍 ${esc(o.clientAddress)}</div>` : ''}
         <div class="order-detail">📅 Entrega: ${o.date}</div>
+        ${repartidorHtml}
         <div class="order-products-list">${productsHtml}</div>
         ${deliveryHtml}
         ${zoneHtml}
@@ -2192,6 +2196,7 @@ function renderHistorialList() {
       ? `<div class="order-detail" style="color:var(--sys-orange)">🚚 Envío: ${fmt(o.deliveryFee)}</div>`
       : (o.subtotal !== undefined ? `<div class="order-detail" style="color:var(--sys-green)">🚚 Envío gratis 🎉</div>` : '');
     const zoneHtml = o.outOfZone ? `<div class="order-zone-badge">⚠️ Fuera de zona</div>` : '';
+    const repartidorHistHtml = o.repartidor ? `<div class="order-detail">🚚 Repartidor: <strong>${esc(o.repartidor)}</strong></div>` : '';
     return `<div class="order-card-new ${isCancelled ? 'order-card-cancelled' : ''}">
       <div class="order-card-body">
         <div class="order-card-hist-header">
@@ -2200,6 +2205,7 @@ function renderHistorialList() {
         </div>
         ${o.clientAddress ? `<div class="order-detail">📍 ${esc(o.clientAddress)}</div>` : ''}
         <div class="order-detail">📅 ${o.date}</div>
+        ${repartidorHistHtml}
         <div class="order-products-list">${productsHtml}</div>
         ${deliveryHtml}
         ${zoneHtml}
