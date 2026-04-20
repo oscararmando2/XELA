@@ -221,7 +221,11 @@ exports.onOrderStatusChange = functions.firestore
   });
 
 // ---- 4. Mercado Pago webhook: receives payment notifications ----
-const MP_ACCESS_TOKEN = 'APP_USR-4153790665353619-042016-4f1267ae7e1be9868033800f4ff94f7d-3348390313';
+// Access token is read from Firebase environment config:
+//   firebase functions:config:set mercadopago.access_token="APP_USR-..."
+// Fallback to the default token if config is not set (for initial deploy).
+const MP_ACCESS_TOKEN = (functions.config().mercadopago && functions.config().mercadopago.access_token)
+  || 'APP_USR-4153790665353619-042016-4f1267ae7e1be9868033800f4ff94f7d-3348390313';
 
 exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') {
@@ -231,10 +235,18 @@ exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
 
   // Mercado Pago sends notifications via query params or body
   const topic = req.query.topic || (req.body && req.body.type);
-  const paymentId = req.query.id || (req.body && req.body.data && req.body.data.id);
+  const rawId = req.query.id || (req.body && req.body.data && req.body.data.id);
 
   // Only process payment notifications
-  if (topic !== 'payment' || !paymentId) {
+  if (topic !== 'payment' || !rawId) {
+    res.status(200).send('OK');
+    return;
+  }
+
+  // Validate paymentId is a numeric string to prevent SSRF
+  const paymentId = String(rawId);
+  if (!/^\d+$/.test(paymentId)) {
+    console.warn(`[MP] Rejected non-numeric paymentId: ${paymentId}`);
     res.status(200).send('OK');
     return;
   }
@@ -276,19 +288,19 @@ exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
     const timeStr = dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Mexico_City' });
 
     const pagoDoc = {
-      paymentId: String(paymentId),
+      paymentId,
       amount,
       currency,
       paymentMethod,
       payerName,
-      dateApproved: dateApproved,
+      dateApproved,
       date: dateStr,
       time: timeStr,
       status,
     };
 
     // Save to pagos_mp collection (idempotent by paymentId)
-    await db.collection('pagos_mp').doc(String(paymentId)).set(pagoDoc, { merge: true });
+    await db.collection('pagos_mp').doc(paymentId).set(pagoDoc, { merge: true });
     console.log(`[MP] Payment ${paymentId} saved to pagos_mp.`);
 
     // Send push notification to all devices
@@ -303,7 +315,8 @@ exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
     res.status(200).send('OK');
   } catch (err) {
     console.error('[MP] Error processing webhook:', err);
-    res.status(500).send('Internal Server Error');
+    // Return 200 to avoid MP retry storms; error is already logged above
+    res.status(200).send('OK');
   }
 });
 
