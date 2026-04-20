@@ -88,6 +88,7 @@ const _readyPromises = {};
 let _todayListenerDate = null;
 let _todayUnsubSales = null;
 let _todayUnsubTx = null;
+let _todayUnsubPagosMP = null;
 
 // ---- Start real-time Firestore listeners (called after login, runs in background) ----
 function startFirestoreSync() {
@@ -127,6 +128,7 @@ function startTodayListeners() {
 
   if (_todayUnsubSales) { _todayUnsubSales(); _todayUnsubSales = null; }
   if (_todayUnsubTx)    { _todayUnsubTx();    _todayUnsubTx    = null; }
+  if (_todayUnsubPagosMP) { _todayUnsubPagosMP(); _todayUnsubPagosMP = null; }
   _todayListenerDate = todayStr;
 
   _todayUnsubSales = db.collection('ventas').where('date', '==', todayStr).onSnapshot(snapshot => {
@@ -153,6 +155,15 @@ function startTodayListeners() {
     if (!_cache['todayTransactions']) _cache['todayTransactions'] = [];
     _loaded['todayTransactions'] = true;
     if (_readyResolvers['todayTransactions']) { _readyResolvers['todayTransactions'](); delete _readyResolvers['todayTransactions']; }
+  });
+
+  _todayUnsubPagosMP = db.collection('pagos_mp').where('date', '==', todayStr).onSnapshot(snapshot => {
+    _cache['todayPagosMP'] = [];
+    snapshot.forEach(doc => _cache['todayPagosMP'].push(doc.data()));
+    _refreshUI('todayPagosMP');
+  }, err => {
+    console.error('Firestore error [pagos_mp/today]:', err);
+    if (!_cache['todayPagosMP']) _cache['todayPagosMP'] = [];
   });
 }
 
@@ -188,6 +199,8 @@ function _refreshUI(key) {
         if (document.getElementById('mod-crm').classList.contains('active')) renderCRM(); break;
       case 'cortes':
         renderContador(); break;
+      case 'todayPagosMP':
+        renderPagosMPHoy(); break;
     }
   } catch (e) { console.error('UI refresh error for ' + key + ':', e); }
 }
@@ -769,6 +782,7 @@ function initPOS() {
   renderProductButtons();
   renderOrderItems();
   renderSalesToday();
+  renderPagosMPHoy();
 
   document.querySelectorAll('.pay-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -794,6 +808,7 @@ function initPOS() {
 function renderPOS() {
   renderProductButtons();
   renderSalesToday();
+  renderPagosMPHoy();
 }
 
 function renderProductButtons() {
@@ -1141,6 +1156,26 @@ function toggleTicketDetail(ticketId) {
     row.style.display = 'none';
     if (btn) btn.textContent = '▼';
   }
+}
+
+function renderPagosMPHoy() {
+  const feed = document.getElementById('mpPaymentsFeed');
+  if (!feed) return;
+  const pagos = (_cache['todayPagosMP'] || []).slice().sort((a, b) => (b.dateApproved || '').localeCompare(a.dateApproved || ''));
+  if (pagos.length === 0) {
+    feed.innerHTML = '<p class="mp-empty">Sin pagos Mercado Pago hoy</p>';
+    return;
+  }
+  feed.innerHTML = pagos.map(p => {
+    const amount = parseFloat(p.amount || 0).toFixed(2);
+    const method = p.paymentMethod || '—';
+    const time = p.time || '—';
+    return `<div class="mp-payment-row">
+      <span class="mp-payment-time">${esc(time)}</span>
+      <span class="mp-payment-amount">$${esc(amount)} MXN</span>
+      <span class="mp-payment-method">${esc(method)}</span>
+    </div>`;
+  }).join('');
 }
 
 function toggleMobSaleDetail(saleId) {
