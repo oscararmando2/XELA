@@ -6,6 +6,7 @@
 'use strict';
 
 const functions = require('firebase-functions');
+const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const webpush = require('web-push');
 
@@ -227,7 +228,7 @@ exports.onOrderStatusChange = functions.firestore
 const MP_ACCESS_TOKEN = (functions.config().mercadopago && functions.config().mercadopago.access_token)
   || 'APP_USR-4153790665353619-042016-4f1267ae7e1be9868033800f4ff94f7d-3348390313';
 
-exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
+exports.mercadoPagoWebhook = onRequest({ invoker: ['public'] }, async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
