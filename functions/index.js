@@ -220,3 +220,103 @@ exports.onOrderStatusChange = functions.firestore
     }
   });
 
+// ---- 4. Mercado Pago webhook: receives payment notifications ----
+// Access token is read from Firebase environment config:
+//   firebase functions:config:set mercadopago.access_token="APP_USR-..."
+// Fallback to the default token if config is not set (for initial deploy).
+const MP_ACCESS_TOKEN = (functions.config().mercadopago && functions.config().mercadopago.access_token)
+  || 'APP_USR-4153790665353619-042016-4f1267ae7e1be9868033800f4ff94f7d-3348390313';
+
+exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).send('Method Not Allowed');
+    return;
+  }
+
+  // Mercado Pago sends notifications via query params or body
+  const topic = req.query.topic || (req.body && req.body.type);
+  const rawId = req.query.id || (req.body && req.body.data && req.body.data.id);
+
+  // Only process payment notifications
+  if (topic !== 'payment' || !rawId) {
+    res.status(200).send('OK');
+    return;
+  }
+
+  // Validate paymentId is a numeric string to prevent SSRF
+  const paymentId = String(rawId);
+  if (!/^\d+$/.test(paymentId)) {
+    console.warn(`[MP] Rejected non-numeric paymentId: ${paymentId}`);
+    res.status(200).send('OK');
+    return;
+  }
+
+  try {
+    // Fetch payment details from Mercado Pago API
+    const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: {
+        Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
+      },
+    });
+
+    if (!mpRes.ok) {
+      console.error(`[MP] Failed to fetch payment ${paymentId}: ${mpRes.status}`);
+      res.status(200).send('OK');
+      return;
+    }
+
+    const payment = await mpRes.json();
+
+    if (payment.status !== 'approved') {
+      // Not approved — acknowledge and ignore
+      res.status(200).send('OK');
+      return;
+    }
+
+    const db = admin.firestore();
+
+    // Build payment record
+    const amount = payment.transaction_amount || 0;
+    const currency = payment.currency_id || 'MXN';
+    const paymentMethod = payment.payment_type_id || payment.payment_method_id || 'unknown';
+    const payerName = (payment.payer && (payment.payer.first_name || payment.payer.email)) || 'Desconocido';
+    const dateApproved = payment.date_approved || payment.date_created || new Date().toISOString();
+    const status = payment.status;
+
+    const dateObj = new Date(dateApproved);
+    const dateStr = dateObj.toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' }); // YYYY-MM-DD in MX timezone
+    const timeStr = dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Mexico_City' });
+
+    const pagoDoc = {
+      paymentId,
+      amount,
+      currency,
+      paymentMethod,
+      payerName,
+      dateApproved,
+      date: dateStr,
+      time: timeStr,
+      status,
+    };
+
+    // Save to pagos_mp collection (idempotent by paymentId)
+    await db.collection('pagos_mp').doc(paymentId).set(pagoDoc, { merge: true });
+    console.log(`[MP] Payment ${paymentId} saved to pagos_mp.`);
+
+    // Send push notification to all devices
+    const subscriptions = await getAllSubscriptions();
+    const amountFmt = parseFloat(amount).toFixed(2);
+    await sendNotification(
+      subscriptions,
+      'Pago recibido',
+      `💳 Pago recibido — $${amountFmt} MXN via ${paymentMethod}`
+    );
+
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('[MP] Error processing webhook:', err);
+    // Return 200 to avoid MP retry storms; error is already logged above
+    res.status(200).send('OK');
+  }
+});
+
