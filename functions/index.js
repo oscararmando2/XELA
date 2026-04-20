@@ -228,6 +228,15 @@ const MP_ACCESS_TOKEN = (functions.config().mercadopago && functions.config().me
   || 'APP_USR-4153790665353619-042016-4f1267ae7e1be9868033800f4ff94f7d-3348390313';
 
 exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
   if (req.method !== 'POST') {
     res.status(405).send('Method Not Allowed');
     return;
