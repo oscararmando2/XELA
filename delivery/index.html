@@ -882,7 +882,7 @@
       requestGPSThenRefresh();
     }
 
-    // Request fresh GPS then optimise; falls back to ZONE_CENTER on error/timeout.
+    // Request fresh GPS then optimize; falls back to ZONE_CENTER on error/timeout.
     function requestGPSThenRefresh() {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
