@@ -984,21 +984,16 @@
     function openGoogleMaps() {
       if (_mapStops.length === 0) return;
 
-      // Try to use GPS as origin, fallback to ZONE_CENTER
-      const origin = _userLocation
-        ? `${_userLocation.lat},${_userLocation.lng}`
-        : `${ZONE_CENTER.lat},${ZONE_CENTER.lng}`;
-
       if (_mapStops.length === 1) {
         const dest = `${_mapStops[0].client.lat},${_mapStops[0].client.lng}`;
-        window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`, '_blank');
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, '_blank');
         return;
       }
 
       const last = _mapStops[_mapStops.length - 1];
       const dest = `${last.client.lat},${last.client.lng}`;
       const waypoints = _mapStops.slice(0, -1).map(s => `${s.client.lat},${s.client.lng}`).join('|');
-      window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&waypoints=${waypoints}&travelmode=driving`, '_blank');
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${waypoints}&travelmode=driving`, '_blank');
     }
 
     // ==========================================
