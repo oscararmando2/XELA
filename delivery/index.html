@@ -605,6 +605,7 @@
     let _unsubClients = null;
     let _mapInstance = null;
     let _mapInitialized = false;
+    let _userLocation = null;
 
     // ==========================================
     // UTILS
@@ -863,7 +864,7 @@
     // MAPA TAB
     // ==========================================
     function initMap() {
-      if (_mapInitialized) { refreshMap(); return; }
+      if (_mapInitialized) { requestGPSThenRefresh(); return; }
       _mapInstance = L.map('deliveryMap').setView([ZONE_CENTER.lat, ZONE_CENTER.lng], 14);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap',
@@ -878,7 +879,23 @@
       }).addTo(_mapInstance).bindPopup(`<strong>Zona de cobertura</strong><br/>Radio: ${ZONE_RADIUS_KM} km`);
 
       _mapInitialized = true;
-      refreshMap();
+      requestGPSThenRefresh();
+    }
+
+    // Request fresh GPS then optimize; falls back to ZONE_CENTER on error/timeout.
+    function requestGPSThenRefresh() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            _userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            refreshMap();
+          },
+          () => refreshMap(),
+          { timeout: 8000, maximumAge: 0 }
+        );
+      } else {
+        refreshMap();
+      }
     }
 
     let _mapMarkers = [];
@@ -952,15 +969,6 @@
       return ordered;
     }
 
-    let _userLocation = null;
-
-    // Try to get user's GPS location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        _userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        if (_mapInitialized) refreshMap();
-      }, () => {}, { timeout: 8000 });
-    }
 
     function renderStopsList() {
       const el = document.getElementById('stopsList');
