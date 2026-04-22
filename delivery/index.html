@@ -1034,12 +1034,21 @@
     // ==========================================
     // BOOTSTRAP
     // ==========================================
-    (function init() {
+    // DOMContentLoaded fires after all deferred external scripts (Firebase, Leaflet)
+    // have executed, ensuring `firebase` is defined before initFirebase() is called.
+    document.addEventListener('DOMContentLoaded', function () {
       const driver = restoreSession();
       if (driver) {
-        enterApp(driver);
+        try {
+          enterApp(driver);
+        } catch (e) {
+          console.error('Auto-login failed, showing login screen:', e);
+          clearSession();
+          document.getElementById('loginScreen').style.display = 'flex';
+          document.getElementById('app').style.display = 'none';
+        }
       }
-    })();
+    });
   </script>
 
 </body>
