@@ -875,7 +875,8 @@ function renderProductButtons() {
     const invItem = inventory.find(i => i.id === p.id) || inventory.find(i => i.id.includes(p.id.split('_')[0]));
     const stockInfo = invItem ? `${invItem.qty} ${invItem.unit} disponibles` : '';
     return `<button class="product-btn" onclick="addToOrder('${p.id}')">
-      <span class="pb-name">${p.emoji} ${p.name.replace('Tortilla de ', '')}</span>
+      <span class="pb-emoji">${p.emoji}</span>
+      <span class="pb-name">${p.name.replace('Tortilla de ', '')}</span>
       <span class="pb-price">${fmt(p.price)} / ${p.unit}</span>
       ${stockInfo ? `<span class="pb-qty">📦 ${stockInfo}</span>` : ''}
     </button>`;
