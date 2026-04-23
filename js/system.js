@@ -68,6 +68,8 @@ const COLLECTION_MAP = {
   clients:      'clientes',
   orders:       'pedidos',
   cortes:       'cortes',
+  recetas:      'recetas',
+  produccion:   'produccion',
 };
 const CONFIG_KEYS = ['corte_last_date'];
 
@@ -192,6 +194,11 @@ function _refreshUI(key) {
         renderResumen(); renderContador(); break;
       case 'inventory':
         renderInventario(); updateLowStockBadge(); renderProductButtons(); break;
+      case 'recetas':
+        if (document.getElementById('mod-recetas')?.classList.contains('active')) renderRecetas(); break;
+      case 'produccion':
+        renderResumen();
+        if (document.getElementById('mod-recetas')?.classList.contains('active')) renderRecetas(); break;
       case 'clients':
         if (document.getElementById('mod-crm').classList.contains('active')) renderClientList(); break;
       case 'orders':
@@ -345,7 +352,7 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
 // ROLE ACCESS CONTROL
 // ==========================================
 const ROLE_MODULES = {
-  control: ['resumen', 'pos', 'contador', 'inventario', 'crm', 'reportes'],
+  control: ['resumen', 'pos', 'contador', 'inventario', 'recetas', 'crm', 'reportes'],
   equipo: ['pos', 'crm']
 };
 
@@ -415,7 +422,7 @@ function switchModule(mod) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('mod-' + mod).classList.add('active');
   document.querySelector(`.nav-item[data-module="${mod}"]`).classList.add('active');
-  const titles = { resumen: 'Resumen', pos: 'Punto de Venta', contador: 'Contador Diario', inventario: 'Inventario', crm: 'CRM + Entregas', reportes: 'Reportes' };
+  const titles = { resumen: 'Resumen', pos: 'Punto de Venta', contador: 'Contador Diario', inventario: 'Inventario', recetas: 'Recetas de Producción', crm: 'CRM + Entregas', reportes: 'Reportes' };
   document.getElementById('topbarTitle').textContent = titles[mod] || mod;
   document.getElementById('sidebar').classList.remove('open');
 
@@ -427,6 +434,7 @@ function switchModule(mod) {
       case 'pos':        initPOS(); break;
       case 'contador':   initContador(); break;
       case 'inventario': initInventario(); break;
+      case 'recetas':    initRecetas(); break;
       case 'crm':        initCRM(); break;
       case 'reportes':   initReportes(); break;
     }
@@ -436,6 +444,7 @@ function switchModule(mod) {
     if (mod === 'pos')        renderPOS();
     if (mod === 'contador')   renderContador();
     if (mod === 'inventario') renderInventario();
+    if (mod === 'recetas')    renderRecetas();
     if (mod === 'crm')        renderCRM();
   }
 }
@@ -483,6 +492,25 @@ function renderResumen() {
   document.getElementById('sum-gastos').textContent = fmt(gastos);
   document.getElementById('sum-utilidad').textContent = fmt(utilidad);
   document.getElementById('sum-equilibrio').textContent = breakEven + ' docenas';
+
+  // Food Cost del Día
+  const foodCostEl = document.getElementById('sum-foodcost');
+  if (foodCostEl) {
+    if (_loaded.produccion) {
+      const produccion = getData('produccion', []).filter(p => p.date === today());
+      const costoProd = produccion.reduce((a, p) => a + (p.costoIngredientes || 0), 0);
+      const ventasHoy = ingresos;
+      if (ventasHoy > 0 && costoProd > 0) {
+        const fc = (costoProd / ventasHoy * 100).toFixed(1);
+        const color = parseFloat(fc) <= 30 ? 'var(--sys-green)' : parseFloat(fc) <= 50 ? 'var(--sys-yellow)' : 'var(--sys-red)';
+        foodCostEl.innerHTML = `<span style="color:${color}">${fc}%</span>`;
+      } else {
+        foodCostEl.textContent = costoProd === 0 ? 'Sin producción' : '—';
+      }
+    } else {
+      foodCostEl.innerHTML = '<span class="mod-spinner"></span>';
+    }
+  }
 
   // Effective cash = all-time ingresos - all-time gastos (needs full collection data)
   if (_loaded.sales && _loaded.transactions) {
@@ -1350,6 +1378,15 @@ function initContador() {
   txDate.value = today();
   document.getElementById('txFilterDate').value = today();
 
+  // Show ingrediente fields only when registering a gasto
+  const txTypeEl = document.getElementById('txType');
+  const txIngFields = document.getElementById('txIngredienteFields');
+  function updateIngredienteFieldsVisibility() {
+    if (txIngFields) txIngFields.style.display = txTypeEl.value === 'gasto' ? 'block' : 'none';
+  }
+  txTypeEl.addEventListener('change', updateIngredienteFieldsVisibility);
+  updateIngredienteFieldsVisibility();
+
   document.getElementById('transactionForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const type = document.getElementById('txType').value;
@@ -1358,11 +1395,25 @@ function initContador() {
     const date = document.getElementById('txDate').value;
     if (!amount || !desc) { toast('Completa todos los campos', 'warning'); return; }
 
+    const txEntry = { id: uid(), date, type, desc, amount };
+    // Save optional ingrediente fields when registering a gasto (all three required together)
+    if (type === 'gasto') {
+      const ingrediente = (document.getElementById('txIngrediente')?.value || '').trim();
+      const cantidad = parseFloat(document.getElementById('txCantidad')?.value) || null;
+      const unidad = document.getElementById('txUnidad')?.value || null;
+      if (ingrediente && cantidad && unidad) {
+        txEntry.ingrediente = ingrediente;
+        txEntry.cantidad = cantidad;
+        txEntry.unidad = unidad;
+      }
+    }
+
     const transactions = getData('transactions', []);
-    transactions.push({ id: uid(), date, type, desc, amount });
+    transactions.push(txEntry);
     setData('transactions', transactions);
     this.reset();
     txDate.value = today();
+    updateIngredienteFieldsVisibility();
     toast(`${type === 'ingreso' ? 'Ingreso' : 'Gasto'} registrado: ${fmt(amount)}`);
     renderContador();
     updateLowStockBadge();
@@ -1739,6 +1790,358 @@ function updateLowStockBadge() {
     badge.style.display = lowCount > 0 ? 'inline-flex' : 'none';
     badge.textContent = `⚠️ ${lowCount} material${lowCount > 1 ? 'es' : ''} bajo`;
   }
+}
+
+// ==========================================
+// MÓDULO: RECETAS + PRODUCCIÓN
+// ==========================================
+let _recetaIngredientes = [];
+let _editingRecetaId = null;
+
+function initRecetas() {
+  document.getElementById('addIngredienteBtn').addEventListener('click', addIngredienteRow);
+  document.getElementById('recetaForm').addEventListener('submit', submitReceta);
+  renderRecetas();
+}
+
+function addIngredienteRow() {
+  _recetaIngredientes.push({ nombre: '', cantidad: 0, unidad: 'kg' });
+  renderIngredienteRows();
+}
+
+function removeIngredienteRow(idx) {
+  _recetaIngredientes.splice(idx, 1);
+  renderIngredienteRows();
+}
+
+function renderIngredienteRows() {
+  const container = document.getElementById('ingredientesRows');
+  if (!container) return;
+  if (_recetaIngredientes.length === 0) {
+    container.innerHTML = '<p class="empty-msg small">Agrega ingredientes usando el botón.</p>';
+    return;
+  }
+  container.innerHTML = _recetaIngredientes.map((ing, idx) => `
+    <div class="ingrediente-row">
+      <input type="text" class="ing-nombre-${idx} ing-input" value="${esc(ing.nombre)}" placeholder="Ingrediente" />
+      <input type="number" class="ing-qty-${idx} ing-input" value="${ing.cantidad || ''}" min="0" step="0.01" placeholder="Cantidad" />
+      <select class="ing-unit-${idx} ing-input">
+        ${['g','kg','L','ml','piezas'].map(u => `<option value="${u}" ${ing.unidad === u ? 'selected' : ''}>${u}</option>`).join('')}
+      </select>
+      <button type="button" class="btn-danger-sys" onclick="removeIngredienteRow(${idx})">✕</button>
+    </div>
+  `).join('');
+}
+
+function readIngredienteRows() {
+  return _recetaIngredientes.map((_, idx) => ({
+    nombre: (document.querySelector(`.ing-nombre-${idx}`)?.value || '').trim(),
+    cantidad: parseFloat(document.querySelector(`.ing-qty-${idx}`)?.value) || 0,
+    unidad: document.querySelector(`.ing-unit-${idx}`)?.value || 'kg',
+  }));
+}
+
+function cancelEditReceta() {
+  _editingRecetaId = null;
+  _recetaIngredientes = [];
+  document.getElementById('recetaForm').reset();
+  document.getElementById('recetaFormTitle').textContent = '➕ Nueva Receta';
+  document.getElementById('cancelEditRecetaBtn').style.display = 'none';
+  renderIngredienteRows();
+}
+
+function submitReceta(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('recetaNombre').value.trim();
+  const productoSalidaId = document.getElementById('recetaProductoSalida').value;
+  const cantidadSalida = parseFloat(document.getElementById('recetaCantidadSalida').value) || 0;
+  const unidadSalida = document.getElementById('recetaUnidadSalida').value;
+
+  if (!nombre || !productoSalidaId || !cantidadSalida) {
+    toast('Completa todos los campos requeridos', 'warning');
+    return;
+  }
+  if (_recetaIngredientes.length === 0) {
+    toast('Agrega al menos un ingrediente', 'warning');
+    return;
+  }
+
+  const ingredientes = readIngredienteRows().filter(i => i.nombre && i.cantidad > 0);
+  if (ingredientes.length === 0) {
+    toast('Los ingredientes deben tener nombre y cantidad mayor a 0', 'warning');
+    return;
+  }
+
+  const prod = PRODUCTS.find(p => p.id === productoSalidaId);
+  const receta = {
+    id: _editingRecetaId || uid(),
+    nombre,
+    productoSalidaId,
+    productoSalidaNombre: prod ? prod.name : productoSalidaId,
+    precioVenta: prod ? prod.price : 0,
+    cantidadSalida,
+    unidadSalida,
+    ingredientes,
+    updatedAt: today(),
+  };
+
+  const recetas = getData('recetas', []);
+  const existIdx = recetas.findIndex(r => r.id === receta.id);
+  if (existIdx >= 0) {
+    recetas[existIdx] = receta;
+    toast('Receta actualizada ✅');
+  } else {
+    recetas.push(receta);
+    toast('Receta creada ✅');
+  }
+  setData('recetas', recetas);
+  cancelEditReceta();
+  renderRecetas();
+}
+
+function editReceta(id) {
+  const recetas = getData('recetas', []);
+  const receta = recetas.find(r => r.id === id);
+  if (!receta) return;
+  _editingRecetaId = id;
+  document.getElementById('recetaNombre').value = receta.nombre;
+  document.getElementById('recetaProductoSalida').value = receta.productoSalidaId || '';
+  document.getElementById('recetaCantidadSalida').value = receta.cantidadSalida;
+  document.getElementById('recetaUnidadSalida').value = receta.unidadSalida;
+  _recetaIngredientes = receta.ingredientes.map(i => ({ ...i }));
+  renderIngredienteRows();
+  document.getElementById('recetaFormTitle').textContent = `✏️ Editando: ${receta.nombre}`;
+  document.getElementById('cancelEditRecetaBtn').style.display = 'inline-flex';
+  document.querySelector('#mod-recetas .receta-form-wrap')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function deleteReceta(id) {
+  if (!confirm('¿Eliminar esta receta?')) return;
+  const recetas = getData('recetas', []).filter(r => r.id !== id);
+  setData('recetas', recetas);
+  toast('Receta eliminada', 'warning');
+  renderRecetas();
+}
+
+// Normalize amount to a base unit for cross-unit cost comparison
+function normalizarUnidad(amount, unit) {
+  if (unit === 'g')  return { amount: amount / 1000, baseUnit: 'kg' };
+  if (unit === 'ml') return { amount: amount / 1000, baseUnit: 'L' };
+  return { amount, baseUnit: unit };
+}
+
+// Get cost per normalized unit for a named ingredient from recent gastos
+function getIngredienteCostPerUnit(nombreIngrediente) {
+  const gastos = getData('transactions', [])
+    .filter(t => t.type === 'gasto' && t.ingrediente &&
+      t.ingrediente.toLowerCase() === nombreIngrediente.toLowerCase() &&
+      t.cantidad > 0 && t.unidad);
+  if (gastos.length === 0) return null;
+  const recent = [...gastos].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+  const { amount: normAmt, baseUnit } = normalizarUnidad(recent.cantidad, recent.unidad);
+  return { costoPorUnidadBase: recent.amount / normAmt, baseUnit };
+}
+
+function calcularCostoReceta(receta) {
+  let costoTotal = 0;
+  let todosConCosto = true;
+  const desglose = receta.ingredientes.map(ing => {
+    const costInfo = getIngredienteCostPerUnit(ing.nombre);
+    if (!costInfo) { todosConCosto = false; return { ...ing, costoIngrediente: null }; }
+    const { amount: normQty, baseUnit } = normalizarUnidad(ing.cantidad, ing.unidad);
+    // Only compute if units are compatible (same base unit)
+    if (costInfo.baseUnit !== baseUnit) { todosConCosto = false; return { ...ing, costoIngrediente: null, baseUnitMismatch: true }; }
+    const costoIngrediente = costInfo.costoPorUnidadBase * normQty;
+    costoTotal += costoIngrediente;
+    return { ...ing, costoIngrediente };
+  });
+  const costoPorUnidadProducida = receta.cantidadSalida > 0 ? costoTotal / receta.cantidadSalida : 0;
+  const foodCostPct = receta.precioVenta > 0 ? (costoPorUnidadProducida / receta.precioVenta * 100) : null;
+  return { costoTotal, costoPorUnidadProducida, foodCostPct, desglose, todosConCosto };
+}
+
+function renderRecetas() {
+  if (!_loaded.recetas || !_loaded.transactions) { showSpinner('recetaList'); return; }
+  const recetas = getData('recetas', []);
+  const container = document.getElementById('recetaList');
+  if (!container) return;
+  if (recetas.length === 0) {
+    container.innerHTML = '<p class="empty-msg">No hay recetas registradas. Crea una usando el formulario.</p>';
+    return;
+  }
+  container.innerHTML = recetas.map(r => {
+    const costo = calcularCostoReceta(r);
+    const fcColor = costo.foodCostPct != null
+      ? (costo.foodCostPct <= 30 ? 'var(--sys-green)' : costo.foodCostPct <= 50 ? 'var(--sys-yellow)' : 'var(--sys-red)')
+      : 'var(--sys-text-muted)';
+    const costoHtml = costo.todosConCosto
+      ? `<div class="receta-costo-row"><span>💰 Costo total / tanda:</span><strong>${fmt(costo.costoTotal)}</strong></div>
+         <div class="receta-costo-row"><span>📦 Costo por unidad:</span><strong>${fmt(costo.costoPorUnidadProducida)}</strong></div>
+         ${costo.foodCostPct != null ? `<div class="receta-costo-row"><span>🍽️ Food Cost:</span><strong style="color:${fcColor}">${costo.foodCostPct.toFixed(1)}%</strong></div>` : ''}`
+      : `<span class="muted">⚠️ Registra compras con ingrediente+cantidad+unidad en Gastos para ver costos.</span>`;
+    const ingList = r.ingredientes.map(i => `<li>${esc(i.nombre)}: ${i.cantidad} ${esc(i.unidad)}</li>`).join('');
+    return `<div class="receta-card">
+      <div class="receta-header">
+        <div class="receta-nombre">📖 ${esc(r.nombre)}</div>
+        <div class="receta-actions">
+          <button class="btn-secondary-sys" onclick="editReceta('${esc(r.id)}')">✏️ Editar</button>
+          <button class="btn-danger-sys" onclick="deleteReceta('${esc(r.id)}')">🗑️</button>
+        </div>
+      </div>
+      <div class="receta-output">🏭 Produce: <strong>${r.cantidadSalida} ${esc(r.unidadSalida)}</strong> de <strong>${esc(r.productoSalidaNombre)}</strong>${r.precioVenta > 0 ? ` — Precio venta: ${fmt(r.precioVenta)}` : ''}</div>
+      <div class="receta-ingredientes"><strong>Ingredientes:</strong><ul>${ingList}</ul></div>
+      <div class="receta-costos">${costoHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+// ---- Registrar Producción ----
+function openProduccionModal() {
+  if (!_loaded.recetas) { toast('Cargando recetas…', 'warning'); return; }
+  const recetas = getData('recetas', []);
+  if (recetas.length === 0) {
+    toast('No hay recetas. Crea una en el módulo Recetas primero.', 'warning');
+    return;
+  }
+  const sel = document.getElementById('prodRecetaSel');
+  sel.innerHTML = '<option value="">— Selecciona una receta —</option>' +
+    recetas.map(r => `<option value="${esc(r.id)}">${esc(r.nombre)}</option>`).join('');
+  document.getElementById('prodTandas').value = '1';
+  document.getElementById('prodPreview').innerHTML = '';
+  document.getElementById('produccionModal').style.display = 'flex';
+}
+
+function closeProduccionModal() {
+  document.getElementById('produccionModal').style.display = 'none';
+}
+
+function updateProdPreview() {
+  const recetaId = document.getElementById('prodRecetaSel').value;
+  const tandas = parseFloat(document.getElementById('prodTandas').value) || 0;
+  const preview = document.getElementById('prodPreview');
+  if (!preview) return;
+  if (!recetaId || tandas <= 0) { preview.innerHTML = ''; return; }
+
+  const receta = getData('recetas', []).find(r => r.id === recetaId);
+  if (!receta) return;
+
+  const costo = calcularCostoReceta(receta);
+  const cantidadTotal = receta.cantidadSalida * tandas;
+  const costoTotal = costo.costoTotal * tandas;
+
+  const inventory = getData('inventory', []);
+  const warnings = [];
+  receta.ingredientes.forEach(ing => {
+    const invItem = inventory.find(i =>
+      i.name.toLowerCase() === ing.nombre.toLowerCase() ||
+      i.id.toLowerCase() === ing.nombre.toLowerCase()
+    );
+    const needed = ing.cantidad * tandas;
+    if (!invItem) {
+      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: no encontrado en inventario`);
+    } else if (invItem.qty < needed) {
+      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: necesitas ${needed} ${esc(ing.unidad)}, hay ${invItem.qty} ${esc(invItem.unit)}`);
+    }
+  });
+
+  const warningsHtml = warnings.length > 0
+    ? `<div class="prod-warnings">${warnings.join('<br>')}</div>`
+    : '<div class="prod-ok">✅ Ingredientes suficientes en inventario</div>';
+
+  const ingList = receta.ingredientes.map(i =>
+    `<li>${esc(i.nombre)}: ${i.cantidad * tandas} ${esc(i.unidad)}</li>`
+  ).join('');
+
+  preview.innerHTML = `<div class="prod-preview-section">
+    <div class="prod-preview-row"><span>📦 Se producirán:</span> <strong>${cantidadTotal} ${esc(receta.unidadSalida)}</strong> de ${esc(receta.productoSalidaNombre)}</div>
+    <div class="prod-preview-row"><span>💰 Costo estimado:</span> <strong>${costo.todosConCosto ? fmt(costoTotal) : 'Sin datos de costo'}</strong></div>
+    ${warningsHtml}
+    <div class="prod-ing-list"><strong>Ingredientes a descontar del inventario:</strong><ul>${ingList}</ul></div>
+  </div>`;
+}
+
+function confirmarProduccion() {
+  const recetaId = document.getElementById('prodRecetaSel').value;
+  const tandas = parseFloat(document.getElementById('prodTandas').value) || 0;
+  if (!recetaId || tandas <= 0) { toast('Selecciona una receta y el número de tandas', 'warning'); return; }
+
+  const receta = getData('recetas', []).find(r => r.id === recetaId);
+  if (!receta) return;
+
+  const costo = calcularCostoReceta(receta);
+  const cantidadTotal = receta.cantidadSalida * tandas;
+  const costoTotal = costo.costoTotal * tandas;
+  const costoPorUnidad = costo.costoPorUnidadProducida;
+
+  // 1. Deduct ingredients from inventory
+  const inventory = getData('inventory', []);
+  receta.ingredientes.forEach(ing => {
+    const invIdx = inventory.findIndex(i =>
+      i.name.toLowerCase() === ing.nombre.toLowerCase() ||
+      i.id.toLowerCase() === ing.nombre.toLowerCase()
+    );
+    if (invIdx >= 0) {
+      const needed = ing.cantidad * tandas;
+      inventory[invIdx] = { ...inventory[invIdx], qty: Math.max(0, inventory[invIdx].qty - needed) };
+    }
+  });
+
+  // 2. Add finished product to inventory
+  const invProductIdx = inventory.findIndex(i => i.id === receta.productoSalidaId);
+  if (invProductIdx >= 0) {
+    inventory[invProductIdx] = { ...inventory[invProductIdx], qty: inventory[invProductIdx].qty + cantidadTotal };
+  } else {
+    inventory.push({
+      id: receta.productoSalidaId,
+      name: receta.productoSalidaNombre,
+      qty: cantidadTotal,
+      unit: receta.unidadSalida,
+      threshold: 0,
+      cost: costoPorUnidad || 0,
+    });
+  }
+  setData('inventory', inventory);
+
+  // 3. Log in produccion collection
+  const now = new Date();
+  const timeStr = now.toTimeString().slice(0, 5);
+  const produccion = getData('produccion', []);
+  produccion.push({
+    id: uid(),
+    date: today(),
+    time: timeStr,
+    recetaId,
+    recetaNombre: receta.nombre,
+    tandas,
+    productoSalidaId: receta.productoSalidaId,
+    productoSalidaNombre: receta.productoSalidaNombre,
+    cantidadProducida: cantidadTotal,
+    unidadSalida: receta.unidadSalida,
+    costoIngredientes: costoTotal,
+    costoPorUnidad,
+    ingredientesUsados: receta.ingredientes.map(i => ({ ...i, cantidadUsada: i.cantidad * tandas })),
+  });
+  setData('produccion', produccion);
+
+  // 4. Log production cost as a gasto
+  if (costoTotal > 0) {
+    const transactions = getData('transactions', []);
+    transactions.push({
+      id: uid(),
+      date: today(),
+      type: 'gasto',
+      desc: `Producción: ${receta.nombre} (${tandas} tanda${tandas > 1 ? 's' : ''})`,
+      amount: costoTotal,
+      esProduccion: true,
+      recetaId,
+    });
+    setData('transactions', transactions);
+  }
+
+  closeProduccionModal();
+  renderInventario();
+  updateLowStockBadge();
+  toast(`✅ ${cantidadTotal} ${receta.unidadSalida} de ${receta.productoSalidaNombre} registradas`);
 }
 
 // ==========================================
