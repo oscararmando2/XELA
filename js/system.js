@@ -1706,6 +1706,11 @@ function initCocina() {
   // Compra form submit
   document.getElementById('compraForm').addEventListener('submit', submitCompra);
 
+  // Produce tab: recipe select, tandas, confirm button
+  document.getElementById('cocinaRecetaSel').addEventListener('change', updateCocinaProduccionPreview);
+  document.getElementById('cocinaTandas').addEventListener('input', updateCocinaProduccionPreview);
+  document.getElementById('confirmarProduccionBtn').addEventListener('click', confirmarCocinaProduccion);
+
   // Recetas tab init (reuse existing functions, same element IDs)
   document.getElementById('addIngredienteBtn').addEventListener('click', addIngredienteRow);
   document.getElementById('recetaForm').addEventListener('submit', submitReceta);
@@ -1730,7 +1735,7 @@ function updateCompraCostoPreview() {
   if (cantidad > 0 && precio > 0) {
     const costo = precio / cantidad;
     preview.style.display = 'block';
-    preview.innerHTML = `💡 Costo por ${unidad}: <strong>${fmt(costo)}</strong>`;
+    preview.innerHTML = `💡 Costo por ${esc(unidad)}: <strong>${fmt(costo)}</strong>`;
   } else {
     preview.style.display = 'none';
   }
@@ -1747,7 +1752,7 @@ function submitCompra(e) {
   if (ingId === CUSTOM_VALUE) {
     ingNombre = document.getElementById('compraCustomNombre').value.trim();
     if (!ingNombre) { toast('Escribe el nombre del ingrediente personalizado', 'warning'); return; }
-    ingIdFinal = ingNombre.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    ingIdFinal = ingNombre.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') || ('custom_' + Date.now());
   } else {
     const ing = INGREDIENTS.find(i => i.id === ingId);
     ingNombre = ing ? ing.nombre : ingId;
@@ -1759,8 +1764,8 @@ function submitCompra(e) {
   const precio = parseFloat(document.getElementById('compraPrecio').value);
   const threshold = parseFloat(document.getElementById('compraThreshold').value) || 0;
 
-  if (!cantidad || isNaN(cantidad) || cantidad <= 0) { toast('Ingresa una cantidad válida', 'warning'); return; }
-  if (!precio || isNaN(precio) || precio <= 0) { toast('Ingresa el precio pagado', 'warning'); return; }
+  if (isNaN(cantidad) || cantidad <= 0) { toast('Ingresa una cantidad válida', 'warning'); return; }
+  if (isNaN(precio) || precio <= 0) { toast('Ingresa el precio pagado', 'warning'); return; }
 
   const costoPorUnidad = precio / cantidad;
 
@@ -1787,20 +1792,16 @@ function submitCompra(e) {
   );
   if (existIdx >= 0) {
     const existing = inventory[existIdx];
-    let addedQty = cantidad;
-    // Convert purchase unit to inventory unit if they normalize to the same base
+    // Normalize both purchase and existing unit to the same base for comparison
     const { amount: normPurchase, baseUnit: purchaseBase } = normalizarUnidad(cantidad, unidad);
-    const { amount: normExist, baseUnit: existBase } = normalizarUnidad(1, existing.unit);
-    if (purchaseBase === existBase) {
-      addedQty = normPurchase / normExist;
-    }
+    const { amount: normExistUnit, baseUnit: existBase } = normalizarUnidad(1, existing.unit);
+    const sameBase = purchaseBase === existBase;
+    const addedQty = sameBase ? normPurchase / normExistUnit : cantidad;
     const newQty = (existing.qty || 0) + addedQty;
     const updatedThreshold = threshold > 0 ? threshold : (existing.threshold || 0);
-    // Recalculate cost per unit (using latest purchase price, normalized)
-    const { amount: normPurchaseAmt } = normalizarUnidad(cantidad, unidad);
-    const { amount: normExistUnit } = normalizarUnidad(1, existing.unit);
-    const newCost = purchaseBase === existBase && normPurchaseAmt > 0
-      ? Math.round((precio / normPurchaseAmt) * normExistUnit * 10000) / 10000
+    // Recalculate cost per inventory unit using the latest purchase price
+    const newCost = sameBase && normPurchase > 0
+      ? Math.round((precio / normPurchase) * normExistUnit * 10000) / 10000
       : costoPorUnidad;
     inventory[existIdx] = { ...existing, qty: Math.round(newQty * 10000) / 10000, cost: newCost, threshold: updatedThreshold };
     toast(`✅ ${ingNombre}: stock actualizado (${newQty.toFixed(2)} ${existing.unit})`);

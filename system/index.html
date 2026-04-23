@@ -516,16 +516,16 @@
                 <h3>🏭 Registrar Producción</h3>
                 <div class="form-group">
                   <label>Receta</label>
-                  <select id="cocinaRecetaSel" onchange="updateCocinaProduccionPreview()">
+                  <select id="cocinaRecetaSel">
                     <option value="">— Selecciona una receta —</option>
                   </select>
                 </div>
                 <div class="form-group">
                   <label>Número de tandas</label>
-                  <input type="number" id="cocinaTandas" value="1" min="1" step="1" oninput="updateCocinaProduccionPreview()" />
+                  <input type="number" id="cocinaTandas" value="1" min="1" step="1" />
                 </div>
                 <div id="cocinaProduccionPreview" class="prod-preview"></div>
-                <button class="btn-primary-sys cocina-btn-large" onclick="confirmarCocinaProduccion()">✅ Registrar Producción</button>
+                <button class="btn-primary-sys cocina-btn-large" id="confirmarProduccionBtn">✅ Registrar Producción</button>
               </div>
               <div class="cocina-card">
                 <h3>📋 Producción de Hoy</h3>
