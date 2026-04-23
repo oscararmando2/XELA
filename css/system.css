@@ -2492,3 +2492,103 @@ details[open] .recurring-summary::before { content: '▼ '; }
 .prod-ing-list { font-size: 0.86rem; }
 .prod-ing-list ul { margin: 0.25rem 0 0 1rem; list-style: disc; }
 .prod-ing-list ul li { margin-bottom: 0.15rem; }
+
+/* ==========================================
+   COCINA & COSTOS
+   ========================================== */
+.cocina-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--sys-border);
+  padding-bottom: 0;
+}
+.cocina-tab {
+  padding: 0.6rem 1.25rem;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--sys-text-muted);
+  cursor: pointer;
+  margin-bottom: -2px;
+  transition: all var(--transition);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.cocina-tab:hover { color: var(--sys-primary); }
+.cocina-tab.active { color: var(--sys-primary); border-bottom-color: var(--sys-primary); }
+.cocina-panel { display: none; }
+.cocina-panel.active { display: block; }
+
+.cocina-two-col {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .cocina-two-col { grid-template-columns: 1fr; }
+}
+
+.cocina-card {
+  background: var(--sys-surface);
+  border: 1px solid var(--sys-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+.cocina-card h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--sys-primary);
+  margin-bottom: 1rem;
+}
+
+.cocina-stock-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.cocina-stock-header h3 { margin-bottom: 0; }
+
+.cocina-btn-large {
+  width: 100%;
+  padding: 0.85rem;
+  font-size: 1rem;
+  margin-top: 0.75rem;
+}
+
+.compra-costo-preview {
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: var(--radius);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.9rem;
+  color: #065f46;
+  margin-bottom: 0.75rem;
+}
+
+.cocina-hist-item {
+  background: var(--sys-bg);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--sys-primary);
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.88rem;
+}
+.cocina-hist-time {
+  font-size: 0.78rem;
+  color: var(--sys-text-muted);
+  margin-bottom: 0.2rem;
+}
+.cocina-hist-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--sys-primary);
+  margin-bottom: 0.3rem;
+}
+

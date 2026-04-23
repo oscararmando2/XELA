@@ -62,6 +62,18 @@ const PRODUCTS = [
   { id: 'salsa',      name: 'Salsa',                     price: 35, unit: 'pieza',  emoji: '🫙' },
 ];
 
+// ---- Predefined ingredients for Cocina & Costos ----
+const INGREDIENTS = [
+  { id: 'jamaica',       nombre: 'Jamaica',          defaultUnit: 'g',   emoji: '🌺' },
+  { id: 'azucar',        nombre: 'Azúcar',            defaultUnit: 'kg',  emoji: '🍬' },
+  { id: 'moringa_polvo', nombre: 'Moringa en polvo',  defaultUnit: 'g',   emoji: '🌿' },
+  { id: 'nopal_ing',     nombre: 'Nopal',             defaultUnit: 'kg',  emoji: '🌵' },
+  { id: 'masa_maiz',     nombre: 'Masa de maíz',      defaultUnit: 'kg',  emoji: '🫓' },
+  { id: 'sal',           nombre: 'Sal',               defaultUnit: 'kg',  emoji: '🧂' },
+  { id: 'chile',         nombre: 'Chile',             defaultUnit: 'g',   emoji: '🌶️' },
+  { id: 'agua',          nombre: 'Agua',              defaultUnit: 'L',   emoji: '💧' },
+];
+
 // ---- Firestore collection name mapping ----
 const COLLECTION_MAP = {
   sales:        'ventas',
@@ -195,12 +207,13 @@ function _refreshUI(key) {
       case 'todayTransactions':
         renderResumen(); renderContador(); break;
       case 'inventory':
-        renderInventario(); updateLowStockBadge(); renderProductButtons(); break;
+        renderCocinaStock(); updateLowStockBadge(); renderProductButtons();
+        break;
       case 'recetas':
-        if (document.getElementById('mod-recetas')?.classList.contains('active')) renderRecetas(); break;
+        if (document.getElementById('mod-cocina')?.classList.contains('active')) renderRecetas(); break;
       case 'produccion':
         renderResumen();
-        if (document.getElementById('mod-recetas')?.classList.contains('active')) renderRecetas(); break;
+        if (document.getElementById('mod-cocina')?.classList.contains('active')) renderCocinaProduccionHist(); break;
       case 'clients':
         if (document.getElementById('mod-crm').classList.contains('active')) renderClientList(); break;
       case 'orders':
@@ -354,7 +367,7 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
 // ROLE ACCESS CONTROL
 // ==========================================
 const ROLE_MODULES = {
-  control: ['resumen', 'pos', 'contador', 'inventario', 'recetas', 'crm', 'reportes'],
+  control: ['resumen', 'pos', 'contador', 'cocina', 'crm', 'reportes'],
   equipo: ['pos', 'crm']
 };
 
@@ -424,7 +437,7 @@ function switchModule(mod) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('mod-' + mod).classList.add('active');
   document.querySelector(`.nav-item[data-module="${mod}"]`).classList.add('active');
-  const titles = { resumen: 'Resumen', pos: 'Punto de Venta', contador: 'Contador Diario', inventario: 'Inventario', recetas: 'Recetas de Producción', crm: 'CRM + Entregas', reportes: 'Reportes' };
+  const titles = { resumen: 'Resumen', pos: 'Punto de Venta', contador: 'Contador Diario', cocina: 'Cocina & Costos', crm: 'CRM + Entregas', reportes: 'Reportes' };
   document.getElementById('topbarTitle').textContent = titles[mod] || mod;
   document.getElementById('sidebar').classList.remove('open');
 
@@ -435,8 +448,7 @@ function switchModule(mod) {
       case 'resumen':    initResumen(); break;
       case 'pos':        initPOS(); break;
       case 'contador':   initContador(); break;
-      case 'inventario': initInventario(); break;
-      case 'recetas':    initRecetas(); break;
+      case 'cocina':     initCocina(); break;
       case 'crm':        initCRM(); break;
       case 'reportes':   initReportes(); break;
     }
@@ -445,8 +457,7 @@ function switchModule(mod) {
     if (mod === 'resumen')    renderResumen();
     if (mod === 'pos')        renderPOS();
     if (mod === 'contador')   renderContador();
-    if (mod === 'inventario') renderInventario();
-    if (mod === 'recetas')    renderRecetas();
+    if (mod === 'cocina')     renderCocina();
     if (mod === 'crm')        renderCRM();
   }
 }
@@ -1375,19 +1386,12 @@ function toggleMobSaleDetail(saleId) {
 // ==========================================
 // MÓDULO: CONTADOR DIARIO
 // ==========================================
+
+// Populate the ingredient selector dropdown from current inventory
 function initContador() {
   const txDate = document.getElementById('txDate');
   txDate.value = today();
   document.getElementById('txFilterDate').value = today();
-
-  // Show ingrediente fields only when registering a gasto
-  const txTypeEl = document.getElementById('txType');
-  const txIngFields = document.getElementById('txIngredienteFields');
-  function updateIngredienteFieldsVisibility() {
-    if (txIngFields) txIngFields.style.display = txTypeEl.value === 'gasto' ? 'block' : 'none';
-  }
-  txTypeEl.addEventListener('change', updateIngredienteFieldsVisibility);
-  updateIngredienteFieldsVisibility();
 
   document.getElementById('transactionForm').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -1398,24 +1402,11 @@ function initContador() {
     if (!amount || !desc) { toast('Completa todos los campos', 'warning'); return; }
 
     const txEntry = { id: uid(), date, type, desc, amount };
-    // Save optional ingrediente fields when registering a gasto (all three required together)
-    if (type === 'gasto') {
-      const ingrediente = (document.getElementById('txIngrediente')?.value || '').trim();
-      const cantidad = parseFloat(document.getElementById('txCantidad')?.value) || null;
-      const unidad = document.getElementById('txUnidad')?.value || null;
-      if (ingrediente && cantidad && unidad) {
-        txEntry.ingrediente = ingrediente;
-        txEntry.cantidad = cantidad;
-        txEntry.unidad = unidad;
-      }
-    }
-
     const transactions = getData('transactions', []);
     transactions.push(txEntry);
     setData('transactions', transactions);
     this.reset();
     txDate.value = today();
-    updateIngredienteFieldsVisibility();
     toast(`${type === 'ingreso' ? 'Ingreso' : 'Gasto'} registrado: ${fmt(amount)}`);
     renderContador();
     updateLowStockBadge();
@@ -1435,7 +1426,6 @@ function initContador() {
 
   renderContador();
 }
-
 
 // ==========================================
 // CORTE DE CAJA
@@ -1670,96 +1660,372 @@ function deleteTransaction(id) {
 }
 
 // ==========================================
-// MÓDULO: INVENTARIO
+// MÓDULO: COCINA & COSTOS
 // ==========================================
-function initInventario() {
-  // Auto-set unit when a product is selected
-  const invNameSel = document.getElementById('invName');
-  const invUnitSel = document.getElementById('invUnit');
-  invNameSel.addEventListener('change', function() {
-    const product = PRODUCTS.find(p => p.id === this.value);
-    if (product) invUnitSel.value = product.unit;
+
+function initCocina() {
+  // Tab switching
+  document.querySelectorAll('.cocina-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.cocina-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.cocina-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('cocina-' + tab.dataset.cocina).classList.add('active');
+      if (tab.dataset.cocina === 'produccion') {
+        populateCocinaRecetaSel();
+        renderCocinaProduccionHist();
+      }
+      if (tab.dataset.cocina === 'recetas') renderRecetas();
+      if (tab.dataset.cocina === 'compras') renderCocinaStock();
+    });
   });
 
-  // Live yield preview
-  function updateYieldPreview() {
-    const qty = parseFloat(document.getElementById('invQty').value) || 0;
-    const unit = invUnitSel.value;
-    const preview = document.getElementById('invYieldPreview');
-    if (unit === 'kg' && qty > 0) {
-      document.getElementById('invYieldValue').textContent = (qty * KG_TO_DOCENAS).toFixed(1);
-      preview.style.display = 'block';
-    } else {
-      preview.style.display = 'none';
-    }
-  }
-  document.getElementById('invQty').addEventListener('input', updateYieldPreview);
-  invUnitSel.addEventListener('change', updateYieldPreview);
+  // Populate compra ingredient dropdown
+  const CUSTOM_VALUE = '__custom__';
+  const compraSel = document.getElementById('compraIngrediente');
+  compraSel.innerHTML = '<option value="">— Selecciona un ingrediente —</option>' +
+    INGREDIENTS.map(i => `<option value="${esc(i.id)}">${i.emoji} ${esc(i.nombre)}</option>`).join('') +
+    `<option value="${CUSTOM_VALUE}">✏️ Otro (personalizado)</option>`;
 
-  document.getElementById('inventoryForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const productId = invNameSel.value.trim();
-    const product = PRODUCTS.find(p => p.id === productId);
-    const name = product ? product.name : productId;
-    const qty = parseFloat(document.getElementById('invQty').value);
-    const unit = invUnitSel.value;
-    const threshold = parseFloat(document.getElementById('invThreshold').value);
-    const cost = parseFloat(document.getElementById('invCost').value) || 0;
-    if (!productId || isNaN(qty) || isNaN(threshold)) { toast('Completa todos los campos requeridos', 'warning'); return; }
-
-    const inventory = getData('inventory', []);
-    const existingIdx = inventory.findIndex(i => i.id === productId || i.name.toLowerCase() === name.toLowerCase());
-    if (existingIdx >= 0) {
-      inventory[existingIdx] = { ...inventory[existingIdx], id: productId, name, qty, unit, threshold, cost };
-      toast('Material actualizado ✅');
-    } else {
-      inventory.push({ id: productId, name, qty, unit, threshold, cost });
-      toast('Material registrado ✅');
+  // Show/hide custom name field + auto-set unit
+  compraSel.addEventListener('change', function() {
+    const isCustom = this.value === CUSTOM_VALUE;
+    document.getElementById('compraCustomWrap').style.display = isCustom ? 'block' : 'none';
+    if (!isCustom && this.value) {
+      const ing = INGREDIENTS.find(i => i.id === this.value);
+      if (ing) document.getElementById('compraUnidad').value = ing.defaultUnit;
     }
-    setData('inventory', inventory);
-    this.reset();
-    document.getElementById('invYieldPreview').style.display = 'none';
-    renderInventario();
-    updateLowStockBadge();
+    updateCompraCostoPreview();
   });
-  renderInventario();
+
+  // Live cost-per-unit preview
+  document.getElementById('compraCantidad').addEventListener('input', updateCompraCostoPreview);
+  document.getElementById('compraPrecio').addEventListener('input', updateCompraCostoPreview);
+  document.getElementById('compraUnidad').addEventListener('change', updateCompraCostoPreview);
+
+  // Compra form submit
+  document.getElementById('compraForm').addEventListener('submit', submitCompra);
+
+  // Produce tab: recipe select, tandas, confirm button
+  document.getElementById('cocinaRecetaSel').addEventListener('change', updateCocinaProduccionPreview);
+  document.getElementById('cocinaTandas').addEventListener('input', updateCocinaProduccionPreview);
+  document.getElementById('confirmarProduccionBtn').addEventListener('click', confirmarCocinaProduccion);
+
+  // Recetas tab init (reuse existing functions, same element IDs)
+  document.getElementById('addIngredienteBtn').addEventListener('click', addIngredienteRow);
+  document.getElementById('recetaForm').addEventListener('submit', submitReceta);
+  seedDefaultRecetas();
+
+  renderCocina();
 }
 
-function renderInventario() {
-  if (!_loaded.inventory) { showSpinner('inventoryList'); return; }
-  const container = document.getElementById('inventoryList');
+function renderCocina() {
+  renderCocinaStock();
+  populateCocinaRecetaSel();
+  renderCocinaProduccionHist();
+  renderRecetas();
+}
+
+function updateCompraCostoPreview() {
+  const cantidad = parseFloat(document.getElementById('compraCantidad').value) || 0;
+  const precio = parseFloat(document.getElementById('compraPrecio').value) || 0;
+  const unidad = document.getElementById('compraUnidad').value;
+  const preview = document.getElementById('compraCostoPreview');
+  if (!preview) return;
+  if (cantidad > 0 && precio > 0) {
+    const costo = precio / cantidad;
+    preview.style.display = 'block';
+    preview.innerHTML = `💡 Costo por ${esc(unidad)}: <strong>${fmt(costo)}</strong>`;
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function submitCompra(e) {
+  e.preventDefault();
+  const CUSTOM_VALUE = '__custom__';
+  const sel = document.getElementById('compraIngrediente');
+  const ingId = sel.value;
+  if (!ingId) { toast('Selecciona un ingrediente', 'warning'); return; }
+
+  let ingNombre, ingIdFinal;
+  if (ingId === CUSTOM_VALUE) {
+    ingNombre = document.getElementById('compraCustomNombre').value.trim();
+    if (!ingNombre) { toast('Escribe el nombre del ingrediente personalizado', 'warning'); return; }
+    ingIdFinal = ingNombre.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') || ('custom_' + Date.now());
+  } else {
+    const ing = INGREDIENTS.find(i => i.id === ingId);
+    ingNombre = ing ? ing.nombre : ingId;
+    ingIdFinal = ingId;
+  }
+
+  const cantidad = parseFloat(document.getElementById('compraCantidad').value);
+  const unidad = document.getElementById('compraUnidad').value;
+  const precio = parseFloat(document.getElementById('compraPrecio').value);
+  const threshold = parseFloat(document.getElementById('compraThreshold').value) || 0;
+
+  if (isNaN(cantidad) || cantidad <= 0) { toast('Ingresa una cantidad válida', 'warning'); return; }
+  if (isNaN(precio) || precio <= 0) { toast('Ingresa el precio pagado', 'warning'); return; }
+
+  const costoPorUnidad = precio / cantidad;
+
+  // 1. Save as gasto transaction with ingredient metadata
+  const transactions = getData('transactions', []);
+  transactions.push({
+    id: uid(),
+    date: today(),
+    type: 'gasto',
+    desc: `Compra: ${ingNombre} (${cantidad} ${unidad})`,
+    amount: precio,
+    ingrediente: ingNombre,
+    ingredienteId: ingIdFinal,
+    cantidad,
+    unidad,
+  });
+  setData('transactions', transactions);
+
+  // 2. Update (or create) inventory item — ADD qty to existing stock
+  const inventory = getData('inventory', []);
+  const existIdx = inventory.findIndex(i =>
+    i.id === ingIdFinal ||
+    i.name.toLowerCase() === ingNombre.toLowerCase()
+  );
+  if (existIdx >= 0) {
+    const existing = inventory[existIdx];
+    // Normalize both purchase and existing unit to the same base for comparison
+    const { amount: normPurchase, baseUnit: purchaseBase } = normalizarUnidad(cantidad, unidad);
+    const { amount: normExistUnit, baseUnit: existBase } = normalizarUnidad(1, existing.unit);
+    const sameBase = purchaseBase === existBase;
+    const addedQty = sameBase ? normPurchase / normExistUnit : cantidad;
+    const newQty = (existing.qty || 0) + addedQty;
+    const updatedThreshold = threshold > 0 ? threshold : (existing.threshold || 0);
+    // Recalculate cost per inventory unit using the latest purchase price
+    const newCost = sameBase && normPurchase > 0
+      ? Math.round((precio / normPurchase) * normExistUnit * 10000) / 10000
+      : costoPorUnidad;
+    inventory[existIdx] = { ...existing, qty: Math.round(newQty * 10000) / 10000, cost: newCost, threshold: updatedThreshold };
+    toast(`✅ ${ingNombre}: stock actualizado (${newQty.toFixed(2)} ${existing.unit})`);
+  } else {
+    inventory.push({
+      id: ingIdFinal,
+      name: ingNombre,
+      qty: cantidad,
+      unit: unidad,
+      threshold,
+      cost: costoPorUnidad,
+      isIngredient: true,
+    });
+    toast(`✅ ${ingNombre} agregado al inventario`);
+  }
+  setData('inventory', inventory);
+
+  // Reset form
+  e.target.reset();
+  document.getElementById('compraCustomWrap').style.display = 'none';
+  document.getElementById('compraCostoPreview').style.display = 'none';
+
+  renderCocinaStock();
+  renderContador();
+  updateLowStockBadge();
+}
+
+function renderCocinaStock() {
+  if (!_loaded.inventory) { showSpinner('cocinaStockList'); return; }
+  const container = document.getElementById('cocinaStockList');
+  if (!container) return;
   const inventory = getData('inventory', []);
   if (inventory.length === 0) {
-    container.innerHTML = '<p class="empty-msg">No hay materiales registrados</p>';
+    container.innerHTML = '<p class="empty-msg">Sin ingredientes en stock. Registra una compra.</p>';
     return;
   }
   container.innerHTML = inventory.map(item => {
     const pct = item.threshold > 0 ? Math.min(100, (item.qty / (item.threshold * 3)) * 100) : 100;
     let statusClass = 'ok', statusText = '✅ Normal', cardClass = '';
     if (item.qty === 0) { statusClass = 'out'; statusText = '🚨 Agotado'; cardClass = 'out'; }
-    else if (item.qty <= item.threshold) { statusClass = 'low'; statusText = '⚠️ Stock bajo'; cardClass = 'low'; }
+    else if (item.threshold > 0 && item.qty <= item.threshold) { statusClass = 'low'; statusText = '⚠️ Stock bajo'; cardClass = 'low'; }
     const barColor = statusClass === 'ok' ? 'var(--sys-green)' : statusClass === 'low' ? 'var(--sys-yellow)' : 'var(--sys-red)';
-    let yieldLine = '';
-    if (item.unit === 'kg') {
-      yieldLine = `<div class="inv-yield-display">🫓 Rendimiento estimado: <strong>${(item.qty * KG_TO_DOCENAS).toFixed(1)} docenas</strong></div>`;
-    } else if (item.unit === 'litro' && item.litersPerUnit) {
-      yieldLine = `<div class="inv-yield-display">📦 Unidades estimadas: <strong>${(item.qty / item.litersPerUnit).toFixed(0)} piezas</strong></div>`;
-    }
+    const costStr = item.cost > 0 ? ` — ${fmt(item.cost)}/${item.unit}` : '';
+    const threshStr = item.threshold > 0 ? ` — Mínimo: ${item.threshold} ${item.unit}` : '';
     return `<div class="inv-card ${cardClass}">
       <div class="inv-card-info">
-        <div class="inv-card-name">${item.name}</div>
-        <div class="inv-card-qty">${item.qty} ${item.unit} — Mínimo: ${item.threshold} ${item.unit} ${item.cost ? `— $${item.cost}/u` : ''}</div>
-        ${yieldLine}
+        <div class="inv-card-name">${esc(item.name)}</div>
+        <div class="inv-card-qty">${item.qty} ${esc(item.unit)}${threshStr}${costStr}</div>
         <div class="inv-progress"><div class="inv-progress-bar" style="width:${pct}%;background:${barColor}"></div></div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <div class="inv-card-status inv-status-${statusClass}">${statusText}</div>
         <div class="inv-card-actions" style="margin-top:0.4rem;">
-          <input class="inv-edit-input" type="number" value="${item.qty}" min="0" step="0.1" id="inv-qty-${item.id}" />
-          <button class="btn-secondary-sys" onclick="updateInvQty('${item.id}')">💾</button>
-          <button class="btn-danger-sys" onclick="deleteInvItem('${item.id}')">🗑️</button>
+          <input class="inv-edit-input" type="number" value="${item.qty}" min="0" step="0.01" id="inv-qty-${esc(item.id)}" />
+          <button class="btn-secondary-sys" onclick="updateInvQty('${esc(item.id)}')">💾</button>
+          <button class="btn-danger-sys" onclick="deleteInvItem('${esc(item.id)}')">🗑️</button>
         </div>
       </div>
+    </div>`;
+  }).join('');
+}
+
+function populateCocinaRecetaSel() {
+  const sel = document.getElementById('cocinaRecetaSel');
+  if (!sel) return;
+  const recetas = getData('recetas', []);
+  sel.innerHTML = '<option value="">— Selecciona una receta —</option>' +
+    recetas.map(r => `<option value="${esc(r.id)}">${esc(r.nombre)}</option>`).join('');
+}
+
+function updateCocinaProduccionPreview() {
+  const recetaId = document.getElementById('cocinaRecetaSel')?.value;
+  const tandas = parseFloat(document.getElementById('cocinaTandas')?.value) || 0;
+  const preview = document.getElementById('cocinaProduccionPreview');
+  if (!preview) return;
+  if (!recetaId || tandas <= 0) { preview.innerHTML = ''; return; }
+
+  const receta = getData('recetas', []).find(r => r.id === recetaId);
+  if (!receta) return;
+
+  const costo = calcularCostoReceta(receta);
+  const cantidadTotal = receta.cantidadSalida * tandas;
+  const costoTotal = costo.costoTotal * tandas;
+
+  const inventory = getData('inventory', []);
+  const warnings = [];
+  receta.ingredientes.forEach(ing => {
+    const invItem = inventory.find(i =>
+      i.name.toLowerCase() === ing.nombre.toLowerCase() ||
+      i.id.toLowerCase() === ing.nombre.toLowerCase()
+    );
+    const needed = ing.cantidad * tandas;
+    if (!invItem) {
+      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: no encontrado en inventario`);
+    } else if (invItem.qty < needed) {
+      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: necesitas ${needed} ${esc(ing.unidad)}, hay ${invItem.qty} ${esc(invItem.unit)}`);
+    }
+  });
+
+  const warningsHtml = warnings.length > 0
+    ? `<div class="prod-warnings">${warnings.join('<br>')}</div>`
+    : '<div class="prod-ok">✅ Ingredientes suficientes en inventario</div>';
+
+  const ingList = receta.ingredientes.map(i =>
+    `<li>${esc(i.nombre)}: ${i.cantidad * tandas} ${esc(i.unidad)}</li>`
+  ).join('');
+
+  const fcColor = costo.foodCostPct != null
+    ? (costo.foodCostPct <= 30 ? 'var(--sys-green)' : costo.foodCostPct <= 40 ? 'var(--sys-yellow)' : 'var(--sys-red)')
+    : '';
+
+  preview.innerHTML = `<div class="prod-preview-section">
+    <div class="prod-preview-row"><span>📦 Se producirán:</span> <strong>${cantidadTotal} ${esc(receta.unidadSalida)}</strong> de ${esc(receta.productoSalidaNombre)}</div>
+    <div class="prod-preview-row"><span>💰 Costo estimado:</span> <strong>${costo.todosConCosto ? fmt(costoTotal) : 'Sin datos de costo'}</strong></div>
+    ${costo.foodCostPct != null ? `<div class="prod-preview-row"><span>🍽️ Food Cost estimado:</span> <strong style="color:${fcColor}">${costo.foodCostPct.toFixed(1)}%</strong></div>` : ''}
+    ${warningsHtml}
+    <div class="prod-ing-list"><strong>Ingredientes a descontar:</strong><ul>${ingList}</ul></div>
+  </div>`;
+}
+
+function confirmarCocinaProduccion() {
+  const recetaId = document.getElementById('cocinaRecetaSel')?.value;
+  const tandas = parseFloat(document.getElementById('cocinaTandas')?.value) || 0;
+  if (!recetaId || tandas <= 0) { toast('Selecciona una receta y número de tandas', 'warning'); return; }
+
+  const receta = getData('recetas', []).find(r => r.id === recetaId);
+  if (!receta) return;
+
+  const costo = calcularCostoReceta(receta);
+  const cantidadTotal = receta.cantidadSalida * tandas;
+  const costoTotal = costo.costoTotal * tandas;
+  const costoPorUnidad = costo.costoPorUnidadProducida;
+
+  // 1. Deduct ingredients from inventory
+  const inventory = getData('inventory', []);
+  receta.ingredientes.forEach(ing => {
+    const invIdx = inventory.findIndex(i =>
+      i.name.toLowerCase() === ing.nombre.toLowerCase() ||
+      i.id.toLowerCase() === ing.nombre.toLowerCase()
+    );
+    if (invIdx >= 0) {
+      const needed = ing.cantidad * tandas;
+      inventory[invIdx] = { ...inventory[invIdx], qty: Math.max(0, inventory[invIdx].qty - needed) };
+    }
+  });
+
+  // 2. Add finished product to sellable inventory
+  const invProductIdx = inventory.findIndex(i => i.id === receta.productoSalidaId);
+  if (invProductIdx >= 0) {
+    inventory[invProductIdx] = { ...inventory[invProductIdx], qty: inventory[invProductIdx].qty + cantidadTotal };
+  } else {
+    inventory.push({
+      id: receta.productoSalidaId,
+      name: receta.productoSalidaNombre,
+      qty: cantidadTotal,
+      unit: receta.unidadSalida,
+      threshold: 0,
+      cost: costoPorUnidad || 0,
+    });
+  }
+  setData('inventory', inventory);
+
+  // 3. Log in produccion collection
+  const now = new Date();
+  const timeStr = now.toTimeString().slice(0, 5);
+  const produccion = getData('produccion', []);
+  produccion.push({
+    id: uid(),
+    date: today(),
+    time: timeStr,
+    recetaId,
+    recetaNombre: receta.nombre,
+    tandas,
+    productoSalidaId: receta.productoSalidaId,
+    productoSalidaNombre: receta.productoSalidaNombre,
+    cantidadProducida: cantidadTotal,
+    unidadSalida: receta.unidadSalida,
+    costoIngredientes: costoTotal,
+    costoPorUnidad,
+    ingredientesUsados: receta.ingredientes.map(i => ({ ...i, cantidadUsada: i.cantidad * tandas })),
+  });
+  setData('produccion', produccion);
+
+  // 4. Log production cost as a gasto
+  if (costoTotal > 0) {
+    const transactions = getData('transactions', []);
+    transactions.push({
+      id: uid(),
+      date: today(),
+      type: 'gasto',
+      desc: `Producción: ${receta.nombre} (${tandas} tanda${tandas > 1 ? 's' : ''})`,
+      amount: costoTotal,
+      esProduccion: true,
+      recetaId,
+    });
+    setData('transactions', transactions);
+  }
+
+  renderCocinaStock();
+  renderCocinaProduccionHist();
+  updateLowStockBadge();
+  document.getElementById('cocinaRecetaSel').value = '';
+  document.getElementById('cocinaTandas').value = '1';
+  document.getElementById('cocinaProduccionPreview').innerHTML = '';
+  toast(`✅ ${cantidadTotal} ${receta.unidadSalida} de ${receta.productoSalidaNombre} registradas`);
+}
+
+function renderCocinaProduccionHist() {
+  const container = document.getElementById('cocinaProduccionHist');
+  if (!container) return;
+  if (!_loaded.produccion) { showSpinner('cocinaProduccionHist'); return; }
+  const todayStr = today();
+  const hist = getData('produccion', []).filter(p => p.date === todayStr);
+  if (hist.length === 0) {
+    container.innerHTML = '<p class="empty-msg">Sin producción registrada hoy</p>';
+    return;
+  }
+  container.innerHTML = [...hist].reverse().map(p => {
+    const costoStr = p.costoIngredientes > 0 ? `<div class="prod-preview-row"><span>💰 Costo:</span> <strong>${fmt(p.costoIngredientes)}</strong></div>` : '';
+    return `<div class="cocina-hist-item">
+      <div class="cocina-hist-time">🕐 ${p.time}</div>
+      <div class="cocina-hist-name">📖 ${esc(p.recetaNombre)}</div>
+      <div class="prod-preview-row"><span>📦 Producido:</span> <strong>${p.cantidadProducida} ${esc(p.unidadSalida)}</strong> (${p.tandas} tanda${p.tandas > 1 ? 's' : ''})</div>
+      ${costoStr}
     </div>`;
   }).join('');
 }
@@ -1771,7 +2037,7 @@ function updateInvQty(id) {
   const idx = inventory.findIndex(i => i.id === id);
   if (idx >= 0) { setData('inventory', inventory.map((item, i) => i === idx ? { ...item, qty: newQty } : item)); }
   toast('Stock actualizado ✅');
-  renderInventario();
+  renderCocinaStock();
   updateLowStockBadge();
 }
 
@@ -1780,7 +2046,7 @@ function deleteInvItem(id) {
   const inventory = getData('inventory', []).filter(i => i.id !== id);
   setData('inventory', inventory);
   toast('Material eliminado', 'warning');
-  renderInventario();
+  renderCocinaStock();
   updateLowStockBadge();
 }
 
@@ -1959,7 +2225,7 @@ function editReceta(id) {
   renderIngredienteRows();
   document.getElementById('recetaFormTitle').textContent = `✏️ Editando: ${receta.nombre}`;
   document.getElementById('cancelEditRecetaBtn').style.display = 'inline-flex';
-  document.querySelector('#mod-recetas .receta-form-wrap')?.scrollIntoView({ behavior: 'smooth' });
+  document.querySelector('#mod-cocina .receta-form-wrap')?.scrollIntoView({ behavior: 'smooth' });
 }
 
 function deleteReceta(id) {
@@ -2047,155 +2313,6 @@ function renderRecetas() {
       <div class="receta-costos">${costoHtml}</div>
     </div>`;
   }).join('');
-}
-
-// ---- Registrar Producción ----
-function openProduccionModal() {
-  if (!_loaded.recetas) { toast('Cargando recetas…', 'warning'); return; }
-  const recetas = getData('recetas', []);
-  if (recetas.length === 0) {
-    toast('No hay recetas. Crea una en el módulo Recetas primero.', 'warning');
-    return;
-  }
-  const sel = document.getElementById('prodRecetaSel');
-  sel.innerHTML = '<option value="">— Selecciona una receta —</option>' +
-    recetas.map(r => `<option value="${esc(r.id)}">${esc(r.nombre)}</option>`).join('');
-  document.getElementById('prodTandas').value = '1';
-  document.getElementById('prodPreview').innerHTML = '';
-  document.getElementById('produccionModal').style.display = 'flex';
-}
-
-function closeProduccionModal() {
-  document.getElementById('produccionModal').style.display = 'none';
-}
-
-function updateProdPreview() {
-  const recetaId = document.getElementById('prodRecetaSel').value;
-  const tandas = parseFloat(document.getElementById('prodTandas').value) || 0;
-  const preview = document.getElementById('prodPreview');
-  if (!preview) return;
-  if (!recetaId || tandas <= 0) { preview.innerHTML = ''; return; }
-
-  const receta = getData('recetas', []).find(r => r.id === recetaId);
-  if (!receta) return;
-
-  const costo = calcularCostoReceta(receta);
-  const cantidadTotal = receta.cantidadSalida * tandas;
-  const costoTotal = costo.costoTotal * tandas;
-
-  const inventory = getData('inventory', []);
-  const warnings = [];
-  receta.ingredientes.forEach(ing => {
-    const invItem = inventory.find(i =>
-      i.name.toLowerCase() === ing.nombre.toLowerCase() ||
-      i.id.toLowerCase() === ing.nombre.toLowerCase()
-    );
-    const needed = ing.cantidad * tandas;
-    if (!invItem) {
-      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: no encontrado en inventario`);
-    } else if (invItem.qty < needed) {
-      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: necesitas ${needed} ${esc(ing.unidad)}, hay ${invItem.qty} ${esc(invItem.unit)}`);
-    }
-  });
-
-  const warningsHtml = warnings.length > 0
-    ? `<div class="prod-warnings">${warnings.join('<br>')}</div>`
-    : '<div class="prod-ok">✅ Ingredientes suficientes en inventario</div>';
-
-  const ingList = receta.ingredientes.map(i =>
-    `<li>${esc(i.nombre)}: ${i.cantidad * tandas} ${esc(i.unidad)}</li>`
-  ).join('');
-
-  preview.innerHTML = `<div class="prod-preview-section">
-    <div class="prod-preview-row"><span>📦 Se producirán:</span> <strong>${cantidadTotal} ${esc(receta.unidadSalida)}</strong> de ${esc(receta.productoSalidaNombre)}</div>
-    <div class="prod-preview-row"><span>💰 Costo estimado:</span> <strong>${costo.todosConCosto ? fmt(costoTotal) : 'Sin datos de costo'}</strong></div>
-    ${warningsHtml}
-    <div class="prod-ing-list"><strong>Ingredientes a descontar del inventario:</strong><ul>${ingList}</ul></div>
-  </div>`;
-}
-
-function confirmarProduccion() {
-  const recetaId = document.getElementById('prodRecetaSel').value;
-  const tandas = parseFloat(document.getElementById('prodTandas').value) || 0;
-  if (!recetaId || tandas <= 0) { toast('Selecciona una receta y el número de tandas', 'warning'); return; }
-
-  const receta = getData('recetas', []).find(r => r.id === recetaId);
-  if (!receta) return;
-
-  const costo = calcularCostoReceta(receta);
-  const cantidadTotal = receta.cantidadSalida * tandas;
-  const costoTotal = costo.costoTotal * tandas;
-  const costoPorUnidad = costo.costoPorUnidadProducida;
-
-  // 1. Deduct ingredients from inventory
-  const inventory = getData('inventory', []);
-  receta.ingredientes.forEach(ing => {
-    const invIdx = inventory.findIndex(i =>
-      i.name.toLowerCase() === ing.nombre.toLowerCase() ||
-      i.id.toLowerCase() === ing.nombre.toLowerCase()
-    );
-    if (invIdx >= 0) {
-      const needed = ing.cantidad * tandas;
-      inventory[invIdx] = { ...inventory[invIdx], qty: Math.max(0, inventory[invIdx].qty - needed) };
-    }
-  });
-
-  // 2. Add finished product to inventory
-  const invProductIdx = inventory.findIndex(i => i.id === receta.productoSalidaId);
-  if (invProductIdx >= 0) {
-    inventory[invProductIdx] = { ...inventory[invProductIdx], qty: inventory[invProductIdx].qty + cantidadTotal };
-  } else {
-    inventory.push({
-      id: receta.productoSalidaId,
-      name: receta.productoSalidaNombre,
-      qty: cantidadTotal,
-      unit: receta.unidadSalida,
-      threshold: 0,
-      cost: costoPorUnidad || 0,
-    });
-  }
-  setData('inventory', inventory);
-
-  // 3. Log in produccion collection
-  const now = new Date();
-  const timeStr = now.toTimeString().slice(0, 5);
-  const produccion = getData('produccion', []);
-  produccion.push({
-    id: uid(),
-    date: today(),
-    time: timeStr,
-    recetaId,
-    recetaNombre: receta.nombre,
-    tandas,
-    productoSalidaId: receta.productoSalidaId,
-    productoSalidaNombre: receta.productoSalidaNombre,
-    cantidadProducida: cantidadTotal,
-    unidadSalida: receta.unidadSalida,
-    costoIngredientes: costoTotal,
-    costoPorUnidad,
-    ingredientesUsados: receta.ingredientes.map(i => ({ ...i, cantidadUsada: i.cantidad * tandas })),
-  });
-  setData('produccion', produccion);
-
-  // 4. Log production cost as a gasto
-  if (costoTotal > 0) {
-    const transactions = getData('transactions', []);
-    transactions.push({
-      id: uid(),
-      date: today(),
-      type: 'gasto',
-      desc: `Producción: ${receta.nombre} (${tandas} tanda${tandas > 1 ? 's' : ''})`,
-      amount: costoTotal,
-      esProduccion: true,
-      recetaId,
-    });
-    setData('transactions', transactions);
-  }
-
-  closeProduccionModal();
-  renderInventario();
-  updateLowStockBadge();
-  toast(`✅ ${cantidadTotal} ${receta.unidadSalida} de ${receta.productoSalidaNombre} registradas`);
 }
 
 // ==========================================
