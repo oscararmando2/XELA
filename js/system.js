@@ -1084,10 +1084,11 @@ function confirmSale() {
 
   // Validate delivery form when delivery is enabled
   let deliveryClient = null;
+  let deliveryPhone = '';
   let deliveryRepartidor = null;
   if (isDelivery) {
-    const phone = (document.getElementById('posDeliveryPhone')?.value || '').trim();
-    if (!phone) { toast('Ingresa el teléfono del cliente para la entrega', 'warning'); return; }
+    deliveryPhone = (document.getElementById('posDeliveryPhone')?.value || '').trim();
+    if (!deliveryPhone) { toast('Ingresa el teléfono del cliente para la entrega', 'warning'); return; }
     deliveryRepartidor = (document.getElementById('posRepartidor')?.value || '').trim() || null;
     if (_posDeliveryClient) {
       deliveryClient = _posDeliveryClient;
@@ -1096,7 +1097,7 @@ function confirmSale() {
       const address = (document.getElementById('posClientAddress')?.value || '').trim();
       if (!name) { toast('Ingresa el nombre del cliente para la entrega', 'warning'); return; }
       if (!address) { toast('Ingresa la dirección de entrega', 'warning'); return; }
-      deliveryClient = { id: uid(), name, phone, address, lat: null, lng: null, notes: '' };
+      deliveryClient = { id: uid(), name, phone: deliveryPhone, address, lat: null, lng: null, notes: '' };
       const clients = getData('clients', []);
       clients.push(deliveryClient);
       setData('clients', clients);
@@ -1157,7 +1158,7 @@ function confirmSale() {
       ticketId,
       clientId: deliveryClient.id,
       clientName: deliveryClient.name,
-      clientPhone: (document.getElementById('posDeliveryPhone')?.value || '').trim(),
+      clientPhone: deliveryPhone,
       clientAddress: deliveryClient.address || '',
       items: orderItems,
       subtotal,
