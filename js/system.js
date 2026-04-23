@@ -778,6 +778,27 @@ const ZONE_EXTRA_FEE = 20;
 // ---- CRM order cart ----
 let _orderCart = {};
 
+// ---- POS delivery form state ----
+let _posDeliveryClient = null; // client object when found by phone
+
+function _resetPOSDeliveryForm() {
+  _posDeliveryClient = null;
+  const phoneEl = document.getElementById('posDeliveryPhone');
+  if (phoneEl) phoneEl.value = '';
+  const resultEl = document.getElementById('posPhoneSearchResult');
+  if (resultEl) { resultEl.style.display = 'none'; resultEl.textContent = ''; }
+  const newFields = document.getElementById('posNewClientFields');
+  if (newFields) newFields.style.display = 'none';
+  const nameEl = document.getElementById('posClientName');
+  if (nameEl) nameEl.value = '';
+  const addrEl = document.getElementById('posClientAddress');
+  if (addrEl) addrEl.value = '';
+  const repartEl = document.getElementById('posRepartidor');
+  if (repartEl) repartEl.value = '';
+  const formEl = document.getElementById('posDeliveryForm');
+  if (formEl) formEl.style.display = 'none';
+}
+
 function initPOS() {
   renderProductButtons();
   renderOrderItems();
@@ -796,7 +817,41 @@ function initPOS() {
   document.getElementById('cashReceived').addEventListener('input', updateChange);
   document.getElementById('discountValue')?.addEventListener('input', () => { renderOrderItems(); });
   document.getElementById('discountType')?.addEventListener('change', () => { renderOrderItems(); });
-  document.getElementById('deliveryToggle')?.addEventListener('change', () => { renderOrderItems(); });
+  document.getElementById('deliveryToggle')?.addEventListener('change', function() {
+    const formEl = document.getElementById('posDeliveryForm');
+    if (formEl) formEl.style.display = this.checked ? 'flex' : 'none';
+    if (!this.checked) _resetPOSDeliveryForm();
+    renderOrderItems();
+  });
+
+  // POS delivery phone lookup
+  document.getElementById('posDeliveryPhone')?.addEventListener('input', function() {
+    const phone = this.value.replace(/\D/g, '');
+    const resultEl = document.getElementById('posPhoneSearchResult');
+    const newFields = document.getElementById('posNewClientFields');
+    if (!resultEl || !newFields) return;
+    if (phone.length < 3) {
+      resultEl.style.display = 'none';
+      newFields.style.display = 'none';
+      _posDeliveryClient = null;
+      return;
+    }
+    const clients = getData('clients', []);
+    const found = clients.find(c => (c.phone || '').replace(/\D/g, '').endsWith(phone));
+    if (found) {
+      _posDeliveryClient = found;
+      resultEl.style.display = 'block';
+      resultEl.className = 'phone-search-result found';
+      resultEl.innerHTML = `<span class="phone-found-icon">✅</span> <strong>${esc(found.name)}</strong>${found.address ? ` — 📍 ${esc(found.address)}` : ''}`;
+      newFields.style.display = 'none';
+    } else {
+      _posDeliveryClient = null;
+      resultEl.style.display = 'block';
+      resultEl.className = 'phone-search-result not-found';
+      resultEl.innerHTML = '🆕 Cliente nuevo — completa los datos:';
+      newFields.style.display = 'flex';
+    }
+  });
 
   document.getElementById('confirmSaleBtn').addEventListener('click', confirmSale);
   document.getElementById('clearOrderBtn').addEventListener('click', () => {
@@ -804,6 +859,7 @@ function initPOS() {
     renderOrderItems();
   });
 }
+
 
 function renderPOS() {
   renderProductButtons();
@@ -1025,6 +1081,29 @@ function confirmSale() {
   const isDelivery = document.getElementById('deliveryToggle')?.checked;
   const deliveryFee = getPOSDeliveryFee();
   const finalTotal = subtotal - discount + deliveryFee;
+
+  // Validate delivery form when delivery is enabled
+  let deliveryClient = null;
+  let deliveryPhone = '';
+  let deliveryRepartidor = null;
+  if (isDelivery) {
+    deliveryPhone = (document.getElementById('posDeliveryPhone')?.value || '').trim();
+    if (!deliveryPhone) { toast('Ingresa el teléfono del cliente para la entrega', 'warning'); return; }
+    deliveryRepartidor = (document.getElementById('posRepartidor')?.value || '').trim() || null;
+    if (_posDeliveryClient) {
+      deliveryClient = _posDeliveryClient;
+    } else {
+      const name = (document.getElementById('posClientName')?.value || '').trim();
+      const address = (document.getElementById('posClientAddress')?.value || '').trim();
+      if (!name) { toast('Ingresa el nombre del cliente para la entrega', 'warning'); return; }
+      if (!address) { toast('Ingresa la dirección de entrega', 'warning'); return; }
+      deliveryClient = { id: uid(), name, phone: deliveryPhone, address, lat: null, lng: null, notes: '' };
+      const clients = getData('clients', []);
+      clients.push(deliveryClient);
+      setData('clients', clients);
+    }
+  }
+
   if (paymentMethod === 'efectivo') {
     const received = parseFloat(document.getElementById('cashReceived').value) || 0;
     if (received < finalTotal) { toast('El monto recibido es insuficiente', 'error'); return; }
@@ -1063,6 +1142,39 @@ function confirmSale() {
     transactions.push({ id: uid(), date: today(), type: 'ingreso', desc: 'Cargo envío a domicilio', amount: deliveryFee });
   }
   setData('transactions', transactions);
+
+  // Create order in pedidos collection when delivery is enabled
+  if (isDelivery && deliveryClient) {
+    const orderItems = currentOrder.map(item => ({
+      productId: item.productId,
+      productName: item.productName,
+      qty: item.qty,
+      price: item.price,
+      total: item.total,
+    }));
+    const orders = getData('orders', []);
+    orders.push({
+      id: uid(),
+      ticketId,
+      clientId: deliveryClient.id,
+      clientName: deliveryClient.name,
+      clientPhone: deliveryPhone,
+      clientAddress: deliveryClient.address || '',
+      items: orderItems,
+      subtotal,
+      discount,
+      deliveryFee,
+      total: finalTotal,
+      date: today(),
+      time: timeStr,
+      status: 'pendiente',
+      repartidor: deliveryRepartidor,
+      notes: '',
+      fromPOS: true,
+    });
+    setData('orders', orders);
+  }
+
   let deliveryMsg = '';
   if (isDelivery) deliveryMsg = deliveryFee > 0 ? ' + 🚚 $20 envío' : ' 🎉 envío gratis';
   const discountMsg = discount > 0 ? ` (desc. ${fmt(discount)})` : '';
@@ -1077,9 +1189,11 @@ function confirmSale() {
   if (deliveryFeeRowEl) deliveryFeeRowEl.style.display = 'none';
   const deliveryToggle = document.getElementById('deliveryToggle');
   if (deliveryToggle) deliveryToggle.checked = false;
+  _resetPOSDeliveryForm();
   renderOrderItems();
   renderSalesToday();
   updateLowStockBadge();
+  if (isDelivery) renderCRM();
 }
 
 function renderSalesToday() {

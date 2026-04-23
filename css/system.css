@@ -1050,6 +1050,50 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
 }
 
 
+/* ---- POS Delivery Form ---- */
+#posDeliveryForm {
+  background: #F0FFF4;
+  border: 1px solid #9AE6B4;
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin: 0.4rem 0 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+#posNewClientFields {
+  display: none;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.pos-delivery-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.pos-delivery-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--sys-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.pos-delivery-field input,
+.pos-delivery-field select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--sys-border);
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  background: #fff;
+  color: var(--sys-text);
+  width: 100%;
+}
+.pos-delivery-field input:focus,
+.pos-delivery-field select:focus {
+  outline: 2px solid var(--sys-primary);
+  outline-offset: 0;
+}
+
 /* ---- Redesigned order cards ---- */
 .order-card-new {
   background: #fff;

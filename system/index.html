@@ -251,6 +251,32 @@
                   <div class="delivery-toggle-row">
                     <label class="delivery-label"><input type="checkbox" id="deliveryToggle" /> 🚚 Entrega a domicilio</label>
                   </div>
+                  <div id="posDeliveryForm" style="display:none;">
+                    <div class="pos-delivery-field">
+                      <label>📞 Teléfono del cliente</label>
+                      <input type="tel" id="posDeliveryPhone" placeholder="Buscar por teléfono..." autocomplete="off" />
+                      <div id="posPhoneSearchResult" class="phone-search-result" style="display:none;"></div>
+                    </div>
+                    <div id="posNewClientFields" style="display:none;">
+                      <div class="pos-delivery-field">
+                        <label>👤 Nombre del cliente</label>
+                        <input type="text" id="posClientName" placeholder="Nombre completo" />
+                      </div>
+                      <div class="pos-delivery-field">
+                        <label>📍 Dirección de entrega</label>
+                        <input type="text" id="posClientAddress" placeholder="Calle, número, colonia" />
+                      </div>
+                    </div>
+                    <div class="pos-delivery-field">
+                      <label>🚴 Repartidor</label>
+                      <select id="posRepartidor">
+                        <option value="">— Sin asignar —</option>
+                        <option value="OSCAR">OSCAR</option>
+                        <option value="CARLOS">CARLOS</option>
+                        <option value="OLIVER">OLIVER</option>
+                      </select>
+                    </div>
+                  </div>
                   <div class="order-total-row" id="deliveryFeeRow" style="display:none;">
                     <span id="deliveryFeeLabel">🚚 Envío:</span>
                     <strong id="deliveryFeeAmt">$0.00</strong>
