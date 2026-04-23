@@ -1957,7 +1957,9 @@ function calcularCostoReceta(receta) {
   });
   const costoPorUnidadProducida = receta.cantidadSalida > 0 ? costoTotal / receta.cantidadSalida : 0;
   const foodCostPct = receta.precioVenta > 0 ? (costoPorUnidadProducida / receta.precioVenta * 100) : null;
-  return { costoTotal, costoPorUnidadProducida, foodCostPct, desglose, todosConCosto };
+  const margenGanancia = receta.precioVenta > 0 ? ((receta.precioVenta - costoPorUnidadProducida) / receta.precioVenta * 100) : null;
+  const gananciaPorUnidad = receta.precioVenta > 0 ? (receta.precioVenta - costoPorUnidadProducida) : null;
+  return { costoTotal, costoPorUnidadProducida, foodCostPct, margenGanancia, gananciaPorUnidad, desglose, todosConCosto };
 }
 
 function renderRecetas() {
@@ -1974,10 +1976,15 @@ function renderRecetas() {
     const fcColor = costo.foodCostPct != null
       ? (costo.foodCostPct <= 30 ? 'var(--sys-green)' : costo.foodCostPct <= 50 ? 'var(--sys-yellow)' : 'var(--sys-red)')
       : 'var(--sys-text-muted)';
+    const margenColor = costo.margenGanancia != null
+      ? (costo.margenGanancia > 60 ? 'var(--sys-green)' : costo.margenGanancia >= 40 ? 'var(--sys-yellow)' : 'var(--sys-red)')
+      : 'var(--sys-text-muted)';
     const costoHtml = costo.todosConCosto
       ? `<div class="receta-costo-row"><span>💰 Costo total / tanda:</span><strong>${fmt(costo.costoTotal)}</strong></div>
          <div class="receta-costo-row"><span>📦 Costo por unidad:</span><strong>${fmt(costo.costoPorUnidadProducida)}</strong></div>
-         ${costo.foodCostPct != null ? `<div class="receta-costo-row"><span>🍽️ Food Cost:</span><strong style="color:${fcColor}">${costo.foodCostPct.toFixed(1)}%</strong></div>` : ''}`
+         ${costo.foodCostPct != null ? `<div class="receta-costo-row"><span>🍽️ Food Cost:</span><strong style="color:${fcColor}">${costo.foodCostPct.toFixed(1)}%</strong></div>` : ''}
+         ${costo.margenGanancia != null ? `<div class="receta-costo-row"><span>📈 Margen de Ganancia:</span><strong style="color:${margenColor}">${costo.margenGanancia.toFixed(1)}%</strong></div>` : ''}
+         ${costo.gananciaPorUnidad != null ? `<div class="receta-costo-row"><span>💵 Ganancia por unidad:</span><strong>${fmt(costo.gananciaPorUnidad)}</strong></div>` : ''}`
       : `<span class="muted">⚠️ Registra compras con ingrediente+cantidad+unidad en Gastos para ver costos.</span>`;
     const ingList = r.ingredientes.map(i => `<li>${esc(i.nombre)}: ${i.cantidad} ${esc(i.unidad)}</li>`).join('');
     return `<div class="receta-card">
