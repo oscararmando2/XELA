@@ -1396,14 +1396,16 @@ function initContador() {
     if (!amount || !desc) { toast('Completa todos los campos', 'warning'); return; }
 
     const txEntry = { id: uid(), date, type, desc, amount };
-    // Save optional ingrediente fields when registering a gasto
+    // Save optional ingrediente fields when registering a gasto (all three required together)
     if (type === 'gasto') {
       const ingrediente = (document.getElementById('txIngrediente')?.value || '').trim();
       const cantidad = parseFloat(document.getElementById('txCantidad')?.value) || null;
       const unidad = document.getElementById('txUnidad')?.value || null;
-      if (ingrediente) txEntry.ingrediente = ingrediente;
-      if (ingrediente && cantidad) txEntry.cantidad = cantidad;
-      if (ingrediente && unidad) txEntry.unidad = unidad;
+      if (ingrediente && cantidad && unidad) {
+        txEntry.ingrediente = ingrediente;
+        txEntry.cantidad = cantidad;
+        txEntry.unidad = unidad;
+      }
     }
 
     const transactions = getData('transactions', []);
@@ -2128,7 +2130,7 @@ function confirmarProduccion() {
       id: uid(),
       date: today(),
       type: 'gasto',
-      desc: `Producción: ${receta.nombre} (${tandas} tanda${tandas !== 1 ? 's' : ''})`,
+      desc: `Producción: ${receta.nombre} (${tandas} tanda${tandas > 1 ? 's' : ''})`,
       amount: costoTotal,
       esProduccion: true,
       recetaId,
