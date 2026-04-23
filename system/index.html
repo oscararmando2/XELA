@@ -396,23 +396,27 @@
                 </div>
                 <div id="txIngredienteFields" style="display:none;">
                   <div class="form-group">
-                    <label>Ingrediente <span class="label-hint">(opcional — para cálculo de costo en recetas)</span></label>
-                    <input type="text" id="txIngrediente" placeholder="ej. Harina de maíz, Jamaica…" />
+                    <label>Ingrediente de inventario <span class="label-hint">(opcional — actualiza costo en recetas)</span></label>
+                    <select id="txIngrediente">
+                      <option value="">— Ninguno (gasto general) —</option>
+                    </select>
                   </div>
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label>Cantidad comprada</label>
-                      <input type="number" id="txCantidad" placeholder="0" min="0" step="0.01" />
-                    </div>
-                    <div class="form-group">
-                      <label>Unidad</label>
-                      <select id="txUnidad">
-                        <option value="g">g</option>
-                        <option value="kg">kg</option>
-                        <option value="L">L</option>
-                        <option value="ml">ml</option>
-                        <option value="piezas">piezas</option>
-                      </select>
+                  <div id="txIngredienteCantidadFields" style="display:none;">
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Cantidad comprada</label>
+                        <input type="number" id="txCantidad" placeholder="0" min="0" step="0.01" />
+                      </div>
+                      <div class="form-group">
+                        <label>Unidad</label>
+                        <select id="txUnidad">
+                          <option value="g">g</option>
+                          <option value="kg">kg</option>
+                          <option value="L">L</option>
+                          <option value="ml">ml</option>
+                          <option value="piezas">piezas</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>

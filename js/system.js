@@ -195,7 +195,9 @@ function _refreshUI(key) {
       case 'todayTransactions':
         renderResumen(); renderContador(); break;
       case 'inventory':
-        renderInventario(); updateLowStockBadge(); renderProductButtons(); break;
+        renderInventario(); updateLowStockBadge(); renderProductButtons();
+        if (document.getElementById('mod-contador')?.classList.contains('active')) populateTxIngredienteDropdown();
+        break;
       case 'recetas':
         if (document.getElementById('mod-recetas')?.classList.contains('active')) renderRecetas(); break;
       case 'produccion':
@@ -1375,6 +1377,27 @@ function toggleMobSaleDetail(saleId) {
 // ==========================================
 // MÓDULO: CONTADOR DIARIO
 // ==========================================
+
+// Populate the ingredient selector dropdown from current inventory
+function populateTxIngredienteDropdown() {
+  const sel = document.getElementById('txIngrediente');
+  if (!sel) return;
+  const inventory = getData('inventory', []);
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Ninguno (gasto general) —</option>' +
+    inventory.map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
+  if (current && inventory.find(i => i.id === current)) sel.value = current;
+}
+
+// Return the canonical base unit string for a given unit label
+function _toBaseUnit(unit) {
+  if (unit === 'g')      return 'kg';
+  if (unit === 'ml')     return 'L';
+  if (unit === 'litro')  return 'L';
+  if (unit === 'pieza')  return 'piezas';
+  return unit;
+}
+
 function initContador() {
   const txDate = document.getElementById('txDate');
   txDate.value = today();
@@ -1383,11 +1406,25 @@ function initContador() {
   // Show ingrediente fields only when registering a gasto
   const txTypeEl = document.getElementById('txType');
   const txIngFields = document.getElementById('txIngredienteFields');
+  const txIngCantFields = document.getElementById('txIngredienteCantidadFields');
   function updateIngredienteFieldsVisibility() {
-    if (txIngFields) txIngFields.style.display = txTypeEl.value === 'gasto' ? 'block' : 'none';
+    const isGasto = txTypeEl.value === 'gasto';
+    if (txIngFields) txIngFields.style.display = isGasto ? 'block' : 'none';
+    if (!isGasto && txIngCantFields) txIngCantFields.style.display = 'none';
   }
   txTypeEl.addEventListener('change', updateIngredienteFieldsVisibility);
   updateIngredienteFieldsVisibility();
+
+  // Show cantidad/unidad fields only when an inventory ingredient is selected
+  const txIngSel = document.getElementById('txIngrediente');
+  if (txIngSel) {
+    txIngSel.addEventListener('change', function() {
+      if (txIngCantFields) txIngCantFields.style.display = this.value ? 'block' : 'none';
+    });
+  }
+
+  // Populate ingredient dropdown from inventory (inventory may already be loaded)
+  populateTxIngredienteDropdown();
 
   document.getElementById('transactionForm').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -1398,15 +1435,32 @@ function initContador() {
     if (!amount || !desc) { toast('Completa todos los campos', 'warning'); return; }
 
     const txEntry = { id: uid(), date, type, desc, amount };
-    // Save optional ingrediente fields when registering a gasto (all three required together)
+    // Save ingrediente fields when registering a gasto with an inventory item selected
     if (type === 'gasto') {
-      const ingrediente = (document.getElementById('txIngrediente')?.value || '').trim();
-      const cantidad = parseFloat(document.getElementById('txCantidad')?.value) || null;
-      const unidad = document.getElementById('txUnidad')?.value || null;
-      if (ingrediente && cantidad && unidad) {
-        txEntry.ingrediente = ingrediente;
-        txEntry.cantidad = cantidad;
-        txEntry.unidad = unidad;
+      const ingredienteId = document.getElementById('txIngrediente')?.value || '';
+      if (ingredienteId) {
+        const cantidad = parseFloat(document.getElementById('txCantidad')?.value) || null;
+        const unidad = document.getElementById('txUnidad')?.value || null;
+        if (!cantidad || !unidad) { toast('Indica la cantidad y unidad del ingrediente', 'warning'); return; }
+        const inventory = getData('inventory', []);
+        const invItem = inventory.find(i => i.id === ingredienteId);
+        if (invItem) {
+          txEntry.ingrediente = invItem.name;
+          txEntry.ingredienteId = invItem.id;
+          txEntry.cantidad = cantidad;
+          txEntry.unidad = unidad;
+
+          // Update ingredient unit cost in inventory when units are compatible
+          const { amount: normQty, baseUnit: purchaseBase } = normalizarUnidad(cantidad, unidad);
+          const invBase = _toBaseUnit(invItem.unit);
+          if (purchaseBase === invBase && normQty > 0) {
+            const newCost = Math.round(amount / normQty * 10000) / 10000;
+            const updatedInventory = inventory.map(i =>
+              i.id === invItem.id ? { ...i, cost: newCost } : i
+            );
+            setData('inventory', updatedInventory);
+          }
+        }
       }
     }
 
@@ -1415,7 +1469,9 @@ function initContador() {
     setData('transactions', transactions);
     this.reset();
     txDate.value = today();
+    if (txIngCantFields) txIngCantFields.style.display = 'none';
     updateIngredienteFieldsVisibility();
+    populateTxIngredienteDropdown();
     toast(`${type === 'ingreso' ? 'Ingreso' : 'Gasto'} registrado: ${fmt(amount)}`);
     renderContador();
     updateLowStockBadge();
