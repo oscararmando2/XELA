@@ -815,16 +815,20 @@ function initPOS() {
   });
 
   document.getElementById('cashReceived').addEventListener('input', updateChange);
+  // Real-time order rendering as user types a discount value
+  document.getElementById('discountValue')?.addEventListener('input', () => { renderOrderItems(); });
+  // Password gate: checked when the field is committed (blur/Enter)
   document.getElementById('discountValue')?.addEventListener('change', function() {
     const val = parseFloat(this.value) || 0;
     if (val > 0) {
+      // Note: password is stored client-side intentionally for a simple POS PIN gate
       const pwd = prompt('🔒 Contraseña requerida para aplicar descuento:');
       if (pwd !== 'xela2024') {
         toast('Contraseña incorrecta. Descuento no aplicado.', 'error');
         this.value = '';
+        renderOrderItems();
       }
     }
-    renderOrderItems();
   });
   document.getElementById('discountType')?.addEventListener('change', () => { renderOrderItems(); });
   document.getElementById('deliveryToggle')?.addEventListener('change', function() {
@@ -2615,7 +2619,7 @@ function generateReport() {
   const transactions = getData('transactions', []).filter(t => t.date >= startStr && t.date <= endStr);
 
   const totalSales = sales.reduce((a, s) => a + s.total, 0);
-  const totalDiscounts = sales.reduce((a, s) => a + (s.discountAmt || s.discount || 0), 0);
+  const totalDiscounts = sales.reduce((a, s) => a + (s.discountAmt !== undefined ? s.discountAmt : (s.discount || 0)), 0);
   const totalIncome = totalSales + transactions.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
   const netProfit = totalSales - totalExpense;
