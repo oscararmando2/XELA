@@ -136,6 +136,9 @@
         <a href="#" class="nav-item" data-module="inventario">
           <span class="nav-icon">📦</span> Inventario
         </a>
+        <a href="#" class="nav-item" data-module="recetas">
+          <span class="nav-icon">📖</span> Recetas
+        </a>
         <a href="#" class="nav-item" data-module="crm">
           <span class="nav-icon">👥</span> CRM + Entregas
           <span class="nav-badge" id="crmBadge" style="display:none;">0</span>
@@ -199,6 +202,11 @@
               <div class="sc-icon">🥇</div>
               <div class="sc-label">Más Vendida (Semana)</div>
               <div class="sc-value" id="sum-top-product">—</div>
+            </div>
+            <div class="summary-card teal">
+              <div class="sc-icon">🍽️</div>
+              <div class="sc-label">Food Cost Hoy</div>
+              <div class="sc-value" id="sum-foodcost">—</div>
             </div>
           </div>
           <div class="resumen-row">
@@ -386,6 +394,28 @@
                   <label>Descripción (ej. sueldo, gas, compra masa)</label>
                   <input type="text" id="txDesc" placeholder="Descripción del movimiento" required />
                 </div>
+                <div id="txIngredienteFields" style="display:none;">
+                  <div class="form-group">
+                    <label>Ingrediente <span class="label-hint">(opcional — para cálculo de costo en recetas)</span></label>
+                    <input type="text" id="txIngrediente" placeholder="ej. Harina de maíz, Jamaica…" />
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>Cantidad comprada</label>
+                      <input type="number" id="txCantidad" placeholder="0" min="0" step="0.01" />
+                    </div>
+                    <div class="form-group">
+                      <label>Unidad</label>
+                      <select id="txUnidad">
+                        <option value="g">g</option>
+                        <option value="kg">kg</option>
+                        <option value="L">L</option>
+                        <option value="ml">ml</option>
+                        <option value="piezas">piezas</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
                 <div class="form-group">
                   <label>Fecha</label>
                   <input type="date" id="txDate" />
@@ -476,8 +506,70 @@
                   <span class="legend-low">⚠️ Bajo</span>
                   <span class="legend-out">🚨 Agotado</span>
                 </div>
+                <button class="btn-primary-sys" onclick="openProduccionModal()" style="margin-left:auto;">🏭 Registrar Producción</button>
               </div>
               <div id="inventoryList" class="inventory-cards"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================================
+             MÓDULO: RECETAS
+             ============================================================ -->
+        <section class="module" id="mod-recetas">
+          <h2 class="module-title">Recetas de Producción</h2>
+          <div class="recetas-layout">
+            <div class="receta-form-wrap">
+              <h3 id="recetaFormTitle">➕ Nueva Receta</h3>
+              <form id="recetaForm">
+                <div class="form-group">
+                  <label>Nombre de la receta</label>
+                  <input type="text" id="recetaNombre" placeholder="ej. Agua de Jamaica" required />
+                </div>
+                <div class="form-group">
+                  <label>Producto resultante</label>
+                  <select id="recetaProductoSalida" required>
+                    <option value="">— Selecciona un producto —</option>
+                    <option value="maiz">🌽 Tortilla de Maíz</option>
+                    <option value="moringa">🌿 Tortilla de Moringa</option>
+                    <option value="nopal">🌵 Tortilla de Nopal</option>
+                    <option value="pasilla">🌶️ Tortilla de Chile Pasilla</option>
+                    <option value="agua_medio">💧 Agua ½ litro</option>
+                    <option value="agua_litro">🚰 Agua 1 litro</option>
+                    <option value="salsa">🫙 Salsa</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Cantidad por tanda</label>
+                    <input type="number" id="recetaCantidadSalida" placeholder="20" min="0.01" step="0.01" required />
+                  </div>
+                  <div class="form-group">
+                    <label>Unidad</label>
+                    <select id="recetaUnidadSalida">
+                      <option value="pieza">pieza(s)</option>
+                      <option value="litro">litro(s)</option>
+                      <option value="kg">kg</option>
+                      <option value="docena">docena(s)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Ingredientes</label>
+                  <div id="ingredientesRows">
+                    <p class="empty-msg small">Agrega ingredientes usando el botón.</p>
+                  </div>
+                  <button type="button" class="btn-secondary-sys" id="addIngredienteBtn" style="margin-top:0.5rem;">➕ Agregar ingrediente</button>
+                </div>
+                <div class="receta-form-actions">
+                  <button type="submit" class="btn-primary-sys">💾 Guardar Receta</button>
+                  <button type="button" class="btn-secondary-sys" id="cancelEditRecetaBtn" style="display:none;" onclick="cancelEditReceta()">✕ Cancelar</button>
+                </div>
+              </form>
+            </div>
+            <div class="receta-list-wrap">
+              <h3>Recetas Guardadas</h3>
+              <div id="recetaList"></div>
             </div>
           </div>
         </section>
@@ -779,6 +871,28 @@
       <div class="modal-actions">
         <button class="btn-secondary-sys" onclick="closeCancelModal()">Volver</button>
         <button class="btn-danger-sys" onclick="confirmCancelOrder()">❌ Cancelar Pedido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar Producción -->
+  <div id="produccionModal" class="modal-overlay" style="display:none;">
+    <div class="modal-card modal-card-wide">
+      <h3 class="modal-title">🏭 Registrar Producción</h3>
+      <div class="form-group">
+        <label>Receta</label>
+        <select id="prodRecetaSel" onchange="updateProdPreview()">
+          <option value="">— Selecciona una receta —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Número de tandas</label>
+        <input type="number" id="prodTandas" value="1" min="0.5" step="0.5" oninput="updateProdPreview()" />
+      </div>
+      <div id="prodPreview" class="prod-preview"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary-sys" onclick="closeProduccionModal()">Cancelar</button>
+        <button class="btn-primary-sys" onclick="confirmarProduccion()">✅ Confirmar Producción</button>
       </div>
     </div>
   </div>
