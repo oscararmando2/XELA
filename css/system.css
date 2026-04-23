@@ -483,20 +483,27 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--sys-primary
 .product-buttons {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
+  gap: 1rem;
 }
 .product-btn {
   background: var(--sys-bg);
   border: 2px solid var(--sys-border);
   border-radius: var(--radius);
-  padding: 1rem;
+  padding: 1.25rem 1rem;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   transition: all var(--transition);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 110px;
+  justify-content: center;
 }
 .product-btn:hover { border-color: var(--sys-primary); background: #F0FDF4; }
-.pb-name { font-weight: 700; font-size: 0.88rem; display: block; margin-bottom: 0.2rem; }
-.pb-price { font-size: 0.82rem; color: var(--sys-text-muted); }
+.pb-emoji { font-size: 2rem; line-height: 1; }
+.pb-name { font-weight: 700; font-size: 1rem; display: block; }
+.pb-price { font-size: 0.95rem; color: var(--sys-text-muted); font-weight: 600; }
 .pb-qty { font-size: 0.75rem; color: var(--sys-green); }
 .order-items {
   min-height: 150px;
