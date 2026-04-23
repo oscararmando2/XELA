@@ -1159,6 +1159,29 @@ function confirmSale() {
   }
   setData('transactions', transactions);
 
+  // Auto-deduct inventory for each item sold
+  const inventory = getData('inventory', []);
+  let inventoryChanged = false;
+  const lowStockNames = [];
+  ticket.items.forEach(item => {
+    const product = PRODUCTS.find(p => p.id === item.productId);
+    const invIdx = inventory.findIndex(i => i.id === item.productId);
+    if (invIdx >= 0 && product && inventory[invIdx].unit === product.unit) {
+      const newQty = Math.max(0, inventory[invIdx].qty - item.qty);
+      inventory[invIdx] = { ...inventory[invIdx], qty: newQty };
+      inventoryChanged = true;
+      if (newQty <= inventory[invIdx].threshold) {
+        lowStockNames.push(inventory[invIdx].name);
+      }
+    }
+  });
+  if (inventoryChanged) {
+    setData('inventory', inventory);
+    if (lowStockNames.length > 0) {
+      setTimeout(() => toast(`⚠️ Stock bajo: ${lowStockNames.join(', ')}`, 'warning'), 1500);
+    }
+  }
+
   // Create order in pedidos collection when delivery is enabled
   if (isDelivery && deliveryClient) {
     const orderItems = currentOrder.map(item => ({
@@ -1597,10 +1620,18 @@ function deleteTransaction(id) {
 // MÓDULO: INVENTARIO
 // ==========================================
 function initInventario() {
+  // Auto-set unit when a product is selected
+  const invNameSel = document.getElementById('invName');
+  const invUnitSel = document.getElementById('invUnit');
+  invNameSel.addEventListener('change', function() {
+    const product = PRODUCTS.find(p => p.id === this.value);
+    if (product) invUnitSel.value = product.unit;
+  });
+
   // Live yield preview
   function updateYieldPreview() {
     const qty = parseFloat(document.getElementById('invQty').value) || 0;
-    const unit = document.getElementById('invUnit').value;
+    const unit = invUnitSel.value;
     const preview = document.getElementById('invYieldPreview');
     if (unit === 'kg' && qty > 0) {
       document.getElementById('invYieldValue').textContent = (qty * KG_TO_DOCENAS).toFixed(1);
@@ -1610,24 +1641,26 @@ function initInventario() {
     }
   }
   document.getElementById('invQty').addEventListener('input', updateYieldPreview);
-  document.getElementById('invUnit').addEventListener('change', updateYieldPreview);
+  invUnitSel.addEventListener('change', updateYieldPreview);
 
   document.getElementById('inventoryForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    const name = document.getElementById('invName').value.trim();
+    const productId = invNameSel.value.trim();
+    const product = PRODUCTS.find(p => p.id === productId);
+    const name = product ? product.name : productId;
     const qty = parseFloat(document.getElementById('invQty').value);
-    const unit = document.getElementById('invUnit').value;
+    const unit = invUnitSel.value;
     const threshold = parseFloat(document.getElementById('invThreshold').value);
     const cost = parseFloat(document.getElementById('invCost').value) || 0;
-    if (!name || isNaN(qty) || isNaN(threshold)) { toast('Completa todos los campos requeridos', 'warning'); return; }
+    if (!productId || isNaN(qty) || isNaN(threshold)) { toast('Completa todos los campos requeridos', 'warning'); return; }
 
     const inventory = getData('inventory', []);
-    const existingIdx = inventory.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
+    const existingIdx = inventory.findIndex(i => i.id === productId || i.name.toLowerCase() === name.toLowerCase());
     if (existingIdx >= 0) {
-      inventory[existingIdx] = { ...inventory[existingIdx], qty, unit, threshold, cost };
+      inventory[existingIdx] = { ...inventory[existingIdx], id: productId, name, qty, unit, threshold, cost };
       toast('Material actualizado ✅');
     } else {
-      inventory.push({ id: uid(), name, qty, unit, threshold, cost });
+      inventory.push({ id: productId, name, qty, unit, threshold, cost });
       toast('Material registrado ✅');
     }
     setData('inventory', inventory);
