@@ -55,8 +55,10 @@ const PRODUCTS = [
   { id: 'moringa',    name: 'Tortilla de Moringa',       price: 30, unit: 'docena', emoji: '🌿' },
   { id: 'nopal',      name: 'Tortilla de Nopal',         price: 25, unit: 'docena', emoji: '🌵' },
   { id: 'pasilla',    name: 'Tortilla de Chile Pasilla', price: 25, unit: 'docena', emoji: '🌶️' },
-  { id: 'agua_medio', name: 'Agua ½ litro',              price: 35, unit: 'pieza',  emoji: '💧' },
-  { id: 'agua_litro', name: 'Agua 1 litro',              price: 45, unit: 'pieza',  emoji: '🚰' },
+  { id: 'jamaica_medio', name: 'Agua Jamaica ½ litro',    price: 35, unit: 'pieza',  emoji: '🌺' },
+  { id: 'jamaica_litro', name: 'Agua Jamaica 1 litro',   price: 45, unit: 'pieza',  emoji: '🌺' },
+  { id: 'moringa_medio', name: 'Agua Moringa ½ litro',   price: 35, unit: 'pieza',  emoji: '🌿' },
+  { id: 'moringa_litro', name: 'Agua Moringa 1 litro',   price: 45, unit: 'pieza',  emoji: '🌿' },
   { id: 'salsa',      name: 'Salsa',                     price: 35, unit: 'pieza',  emoji: '🫙' },
 ];
 
@@ -1801,7 +1803,52 @@ let _editingRecetaId = null;
 function initRecetas() {
   document.getElementById('addIngredienteBtn').addEventListener('click', addIngredienteRow);
   document.getElementById('recetaForm').addEventListener('submit', submitReceta);
+  seedDefaultRecetas();
   renderRecetas();
+}
+
+function seedDefaultRecetas() {
+  const recetas = getData('recetas', []);
+  const DEFAULT_RECETAS = [
+    {
+      id: 'default_agua_jamaica',
+      nombre: 'Agua de Jamaica',
+      productoSalidaId: 'jamaica_litro',
+      productoSalidaNombre: 'Agua Jamaica 1 litro',
+      precioVenta: 45,
+      cantidadSalida: 20,
+      unidadSalida: 'litro',
+      ingredientes: [
+        { nombre: 'Jamaica', cantidad: 300, unidad: 'g' },
+        { nombre: 'Azúcar', cantidad: 1, unidad: 'kg' },
+        { nombre: 'Agua', cantidad: 15, unidad: 'L' },
+      ],
+      updatedAt: today(),
+    },
+    {
+      id: 'default_agua_moringa',
+      nombre: 'Agua de Moringa',
+      productoSalidaId: 'moringa_litro',
+      productoSalidaNombre: 'Agua Moringa 1 litro',
+      precioVenta: 45,
+      cantidadSalida: 20,
+      unidadSalida: 'litro',
+      ingredientes: [
+        { nombre: 'Moringa en polvo', cantidad: 100, unidad: 'g' },
+        { nombre: 'Azúcar', cantidad: 1, unidad: 'kg' },
+        { nombre: 'Agua', cantidad: 15, unidad: 'L' },
+      ],
+      updatedAt: today(),
+    },
+  ];
+  let changed = false;
+  DEFAULT_RECETAS.forEach(def => {
+    if (!recetas.find(r => r.id === def.id)) {
+      recetas.push(def);
+      changed = true;
+    }
+  });
+  if (changed) setData('recetas', recetas);
 }
 
 function addIngredienteRow() {
