@@ -815,7 +815,17 @@ function initPOS() {
   });
 
   document.getElementById('cashReceived').addEventListener('input', updateChange);
-  document.getElementById('discountValue')?.addEventListener('input', () => { renderOrderItems(); });
+  document.getElementById('discountValue')?.addEventListener('change', function() {
+    const val = parseFloat(this.value) || 0;
+    if (val > 0) {
+      const pwd = prompt('🔒 Contraseña requerida para aplicar descuento:');
+      if (pwd !== 'xela2024') {
+        toast('Contraseña incorrecta. Descuento no aplicado.', 'error');
+        this.value = '';
+      }
+    }
+    renderOrderItems();
+  });
   document.getElementById('discountType')?.addEventListener('change', () => { renderOrderItems(); });
   document.getElementById('deliveryToggle')?.addEventListener('change', function() {
     const formEl = document.getElementById('posDeliveryForm');
@@ -1113,6 +1123,8 @@ function confirmSale() {
   const timeStr = now.toTimeString().slice(0, 5);
   const sales = getData('sales', []);
   const ticketId = generateTicketId(sales);
+  const discType = document.getElementById('discountType')?.value || 'pct';
+  const discVal = parseFloat(document.getElementById('discountValue')?.value) || 0;
   const ticket = {
     id: uid(),
     ticketId,
@@ -1129,16 +1141,15 @@ function confirmSale() {
     total: finalTotal,
     payment: paymentMethod,
     discount,
+    originalSubtotal: subtotal,
+    discountAmt: discount,
+    discountType: discount > 0 ? discType : null,
+    discountPct: discount > 0 && discType === 'pct' ? discVal : null,
     envio: deliveryFee,
   };
   sales.push(ticket);
   setData('sales', sales);
   const transactions = getData('transactions', []);
-  if (discount > 0) {
-    const discType = document.getElementById('discountType')?.value || 'pct';
-    const discVal = parseFloat(document.getElementById('discountValue')?.value) || 0;
-    transactions.push({ id: uid(), date: today(), type: 'gasto', desc: `Descuento cliente frecuente (${discType === 'pct' ? discVal + '%' : '$' + discVal})`, amount: discount });
-  }
   if (deliveryFee > 0) {
     transactions.push({ id: uid(), date: today(), type: 'ingreso', desc: 'Cargo envío a domicilio', amount: deliveryFee });
   }
@@ -2604,6 +2615,7 @@ function generateReport() {
   const transactions = getData('transactions', []).filter(t => t.date >= startStr && t.date <= endStr);
 
   const totalSales = sales.reduce((a, s) => a + s.total, 0);
+  const totalDiscounts = sales.reduce((a, s) => a + (s.discountAmt || s.discount || 0), 0);
   const totalIncome = totalSales + transactions.filter(t => t.type === 'ingreso').reduce((a, t) => a + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'gasto').reduce((a, t) => a + t.amount, 0);
   const netProfit = totalSales - totalExpense;
@@ -2630,6 +2642,7 @@ function generateReport() {
     <div class="report-kpi red"><div class="rk-label">🧾 Total Gastos</div><div class="rk-value">${fmt(totalExpense)}</div></div>
     <div class="report-kpi purple"><div class="rk-label">📊 Utilidad Neta</div><div class="rk-value" style="color:${netProfit>=0?'var(--sys-green)':'var(--sys-red)'}">${fmt(netProfit)}</div></div>
     <div class="report-kpi orange"><div class="rk-label">📦 Docenas Vendidas</div><div class="rk-value">${totalDocenas.toFixed(1)} docenas</div></div>
+    ${totalDiscounts > 0 ? `<div class="report-kpi" style="border-left:4px solid var(--sys-gold,#F5A800)"><div class="rk-label">🏷️ Total Descuentos del Día</div><div class="rk-value" style="color:var(--sys-gold,#F5A800)">${fmt(totalDiscounts)}</div></div>` : ''}
   `;
 
   // By product chart
