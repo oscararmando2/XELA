@@ -901,24 +901,65 @@
     let _mapMarkers = [];
     let _mapStops = [];
 
-    function refreshMap() {
+    // Geocode an address string using the Google Maps Geocoding API.
+    // Returns a Promise that resolves to { lat, lng } on success, or null if geocoding fails.
+    async function geocodeAddress(address) {
+      if (!address) return null;
+      try {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${MAPS_API_KEY}`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.status !== 'OK' || !data.results || data.results.length === 0) return null;
+        const loc = data.results[0].geometry.location;
+        return { lat: loc.lat, lng: loc.lng };
+      } catch (e) {
+        console.error('[Geocode] Error:', e);
+        return null;
+      }
+    }
+
+    async function refreshMap() {
       if (!_mapInstance) return;
 
       // Clear old markers
       _mapMarkers.forEach(m => _mapInstance.removeLayer(m));
       _mapMarkers = [];
 
-      const todayStr = today();
       const pendingOrders = _orders.filter(o => o.status === 'pendiente');
 
-      // Build stops
-      _mapStops = [];
-      pendingOrders.forEach(o => {
+      // Build stops — resolve coordinates for each order
+      const stopCandidates = await Promise.all(pendingOrders.map(async (o) => {
+        // 1. Use coordinates already stored on the order document
+        if (o.lat && o.lng) {
+          const client = _clients.find(c => c.id === o.clientId) || {};
+          return { order: o, client, lat: o.lat, lng: o.lng };
+        }
+
+        // 2. Fall back to coordinates on the client document
         const client = _clients.find(c => c.id === o.clientId);
         if (client && client.lat && client.lng) {
-          _mapStops.push({ order: o, client });
+          return { order: o, client, lat: client.lat, lng: client.lng };
         }
-      });
+
+        // 3. Geocode the address text and persist to the order document
+        const address = o.clientAddress || (client && client.address) || null;
+        if (address) {
+          const coords = await geocodeAddress(address);
+          if (coords) {
+            // Persist so we only geocode once per order. Fire-and-forget is intentional:
+            // the next Firestore snapshot will carry the saved coords, preventing re-geocoding.
+            db.collection('pedidos').doc(o._docId).update({ lat: coords.lat, lng: coords.lng })
+              .catch(err => console.error('[Geocode] Failed to save coords:', err));
+            return { order: o, client: client || {}, lat: coords.lat, lng: coords.lng };
+          }
+        }
+
+        // No coordinates available — skip this stop
+        return null;
+      }));
+
+      _mapStops = stopCandidates.filter(s => s !== null);
 
       // Sort by nearest-neighbor from GPS or ZONE_CENTER
       if (_mapStops.length > 1) {
@@ -934,15 +975,17 @@
         });
         const items = s.order.items || [];
         const prods = items.map(it => `${(it.productName||'').replace('Tortilla de ','')} ×${it.qty}`).join(', ');
-        const m = L.marker([s.client.lat, s.client.lng], { icon })
+        const displayName = (s.client && s.client.name) || s.order.clientName || '—';
+        const displayAddr = (s.client && s.client.address) || s.order.clientAddress || '';
+        const m = L.marker([s.lat, s.lng], { icon })
           .addTo(_mapInstance)
-          .bindPopup(`<strong>${i+1}. ${s.client.name}</strong><br/>${prods}<br/>📍 ${s.client.address||''}`);
+          .bindPopup(`<strong>${i+1}. ${displayName}</strong><br/>${prods}<br/>📍 ${displayAddr}`);
         _mapMarkers.push(m);
       });
 
       // Fit map to markers
       if (_mapStops.length > 0) {
-        const latlngs = _mapStops.map(s => [s.client.lat, s.client.lng]);
+        const latlngs = _mapStops.map(s => [s.lat, s.lng]);
         _mapInstance.fitBounds(L.latLngBounds(latlngs).pad(0.2));
       }
 
@@ -959,12 +1002,12 @@
       while (remaining.length > 0) {
         let nearest = 0, nearestDist = Infinity;
         for (let i = 0; i < remaining.length; i++) {
-          const d = haversine(current, { lat: remaining[i].client.lat, lng: remaining[i].client.lng });
+          const d = haversine(current, { lat: remaining[i].lat, lng: remaining[i].lng });
           if (d < nearestDist) { nearestDist = d; nearest = i; }
         }
         const s = remaining.splice(nearest, 1)[0];
         ordered.push(s);
-        current = { lat: s.client.lat, lng: s.client.lng };
+        current = { lat: s.lat, lng: s.lng };
       }
       return ordered;
     }
@@ -976,15 +1019,18 @@
         el.innerHTML = '<div class="empty-state"><span class="empty-icon">🗺️</span>Sin paradas pendientes hoy</div>';
         return;
       }
-      el.innerHTML = _mapStops.map((s, i) => `
+      el.innerHTML = _mapStops.map((s, i) => {
+        const displayName = (s.client && s.client.name) || s.order.clientName || '—';
+        const displayAddr = (s.client && s.client.address) || s.order.clientAddress || 'Sin dirección';
+        return `
         <div class="stop-card">
           <div class="stop-num">${i+1}</div>
           <div class="stop-info">
-            <div class="stop-client">${esc(s.client.name)}</div>
-            <div class="stop-addr">📍 ${esc(s.client.address || 'Sin dirección')}</div>
+            <div class="stop-client">${esc(displayName)}</div>
+            <div class="stop-addr">📍 ${esc(displayAddr)}</div>
           </div>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
     }
 
     document.getElementById('openGmapsBtn').addEventListener('click', openGoogleMaps);
@@ -993,14 +1039,14 @@
       if (_mapStops.length === 0) return;
 
       if (_mapStops.length === 1) {
-        const dest = `${_mapStops[0].client.lat},${_mapStops[0].client.lng}`;
+        const dest = `${_mapStops[0].lat},${_mapStops[0].lng}`;
         window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, '_blank');
         return;
       }
 
       const last = _mapStops[_mapStops.length - 1];
-      const dest = `${last.client.lat},${last.client.lng}`;
-      const waypoints = _mapStops.slice(0, -1).map(s => `${s.client.lat},${s.client.lng}`).join('|');
+      const dest = `${last.lat},${last.lng}`;
+      const waypoints = _mapStops.slice(0, -1).map(s => `${s.lat},${s.lng}`).join('|');
       window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&waypoints=${waypoints}&travelmode=driving`, '_blank');
     }
 
