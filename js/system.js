@@ -1887,6 +1887,19 @@ function updateCocinaProduccionPreview() {
   const costoTotal = costo.costoTotal * tandas;
 
   const inventory = getData('inventory', []);
+
+  // Convert a quantity to a canonical base unit for comparison.
+  // Weight → grams, Volume → millilitres, anything else → unchanged.
+  function toBaseQty(qty, unit) {
+    const u = (unit || '').toLowerCase().trim();
+    const weightMap = { kg: 1000, g: 1, lb: 453.592, oz: 28.3495 };
+    const volumeMap = { l: 1000, lt: 1000, ltr: 1000, litro: 1000, litros: 1000,
+                        ml: 1, cc: 1, dl: 100 };
+    if (weightMap[u] !== undefined) return qty * weightMap[u];
+    if (volumeMap[u] !== undefined) return qty * volumeMap[u];
+    return qty;
+  }
+
   const warnings = [];
   receta.ingredientes.forEach(ing => {
     const invItem = inventory.find(i =>
@@ -1896,7 +1909,7 @@ function updateCocinaProduccionPreview() {
     const needed = ing.cantidad * tandas;
     if (!invItem) {
       warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: no encontrado en inventario`);
-    } else if (invItem.qty < needed) {
+    } else if (toBaseQty(invItem.qty, invItem.unit) < toBaseQty(needed, ing.unidad)) {
       warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: necesitas ${needed} ${esc(ing.unidad)}, hay ${invItem.qty} ${esc(invItem.unit)}`);
     }
   });
