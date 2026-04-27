@@ -62,6 +62,15 @@ const PRODUCTS = [
   { id: 'salsa',      name: 'Salsa',                     price: 35, unit: 'pieza',  emoji: '🫙' },
 ];
 
+// ---- Shared finished-product inventory pools for agua products ----
+// Maps POS product ID → { poolId: inventory item id, liters: liters deducted per unit sold }
+const SHARED_INVENTORY_MAP = {
+  jamaica_medio: { poolId: 'jamaica_litro', liters: 0.5 },
+  jamaica_litro: { poolId: 'jamaica_litro', liters: 1 },
+  moringa_medio: { poolId: 'moringa_litro', liters: 0.5 },
+  moringa_litro: { poolId: 'moringa_litro', liters: 1 },
+};
+
 // ---- Predefined ingredients for Cocina & Costos ----
 const INGREDIENTS = [
   { id: 'jamaica',       nombre: 'Jamaica',          defaultUnit: 'g',   emoji: '🌺' },
@@ -951,8 +960,11 @@ function renderProductButtons() {
   if (!_loaded.inventory) { showSpinner('productButtons'); return; }
   const inventory = getData('inventory', []);
   const html = PRODUCTS.map(p => {
-    // Exact match first; fall back to prefix match for legacy inventory IDs (e.g. masa_maiz → maiz)
-    const invItem = inventory.find(i => i.id === p.id) || inventory.find(i => i.id.includes(p.id.split('_')[0]));
+    // Water products share one finished-product inventory pool (tracked in liters)
+    const sharedPool = SHARED_INVENTORY_MAP[p.id];
+    const invItem = sharedPool
+      ? inventory.find(i => i.id === sharedPool.poolId)
+      : (inventory.find(i => i.id === p.id) || inventory.find(i => i.id.includes(p.id.split('_')[0])));
     const stockInfo = invItem ? `${invItem.qty} ${invItem.unit} disponibles` : '';
     return `<button class="product-btn" onclick="addToOrder('${p.id}')">
       <span class="pb-emoji">${p.emoji}</span>
@@ -1230,14 +1242,28 @@ function confirmSale() {
   let inventoryChanged = false;
   const lowStockNames = [];
   ticket.items.forEach(item => {
-    const product = PRODUCTS.find(p => p.id === item.productId);
-    const invIdx = inventory.findIndex(i => i.id === item.productId);
-    if (invIdx >= 0 && product && inventory[invIdx].unit === product.unit) {
-      const newQty = Math.max(0, inventory[invIdx].qty - item.qty);
-      inventory[invIdx] = { ...inventory[invIdx], qty: newQty };
-      inventoryChanged = true;
-      if (newQty <= inventory[invIdx].threshold) {
-        lowStockNames.push(inventory[invIdx].name);
+    const sharedPool = SHARED_INVENTORY_MAP[item.productId];
+    if (sharedPool) {
+      // Water products: deduct fractional liters from shared finished-product pool
+      const invIdx = inventory.findIndex(i => i.id === sharedPool.poolId);
+      if (invIdx >= 0) {
+        const newQty = Math.max(0, inventory[invIdx].qty - item.qty * sharedPool.liters);
+        inventory[invIdx] = { ...inventory[invIdx], qty: newQty };
+        inventoryChanged = true;
+        if (inventory[invIdx].threshold > 0 && newQty <= inventory[invIdx].threshold) {
+          lowStockNames.push(inventory[invIdx].name);
+        }
+      }
+    } else {
+      const product = PRODUCTS.find(p => p.id === item.productId);
+      const invIdx = inventory.findIndex(i => i.id === item.productId);
+      if (invIdx >= 0 && product && inventory[invIdx].unit === product.unit) {
+        const newQty = Math.max(0, inventory[invIdx].qty - item.qty);
+        inventory[invIdx] = { ...inventory[invIdx], qty: newQty };
+        inventoryChanged = true;
+        if (inventory[invIdx].threshold > 0 && newQty <= inventory[invIdx].threshold) {
+          lowStockNames.push(inventory[invIdx].name);
+        }
       }
     }
   });
