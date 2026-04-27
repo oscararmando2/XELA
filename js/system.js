@@ -267,25 +267,28 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 
 // ---- Unit conversion helpers ----
 // Weight base: grams (g).  Volume base: millilitres (ml).  Pieces: unchanged.
-const _WEIGHT_MAP = { kg: 1000, g: 1, lb: 453.592, oz: 28.3495 };
-const _VOLUME_MAP = { l: 1000, lt: 1000, ltr: 1000, litro: 1000, litros: 1000,
-                      ml: 1, cc: 1, dl: 100 };
+const WEIGHT_TO_GRAMS = { kg: 1000, g: 1, lb: 453.592, oz: 28.3495 };
+const VOLUME_TO_ML    = { l: 1000, lt: 1000, ltr: 1000, litro: 1000, litros: 1000,
+                          ml: 1, cc: 1, dl: 100 };
 
 /** Convert qty in the given unit to its canonical base unit value. */
 function toBaseUnit(qty, unit) {
   const u = (unit || '').toLowerCase().trim();
-  if (_WEIGHT_MAP[u] !== undefined) return qty * _WEIGHT_MAP[u];
-  if (_VOLUME_MAP[u] !== undefined) return qty * _VOLUME_MAP[u];
+  if (WEIGHT_TO_GRAMS[u] !== undefined) return qty * WEIGHT_TO_GRAMS[u];
+  if (VOLUME_TO_ML[u]    !== undefined) return qty * VOLUME_TO_ML[u];
   return qty; // pieces or unknown unit — no conversion
 }
 
 /** Convert a base-unit value back to the given target unit. */
 function fromBaseUnit(baseQty, unit) {
   const u = (unit || '').toLowerCase().trim();
-  if (_WEIGHT_MAP[u] !== undefined) return baseQty / _WEIGHT_MAP[u];
-  if (_VOLUME_MAP[u] !== undefined) return baseQty / _VOLUME_MAP[u];
+  if (WEIGHT_TO_GRAMS[u] !== undefined) return baseQty / WEIGHT_TO_GRAMS[u];
+  if (VOLUME_TO_ML[u]    !== undefined) return baseQty / VOLUME_TO_ML[u];
   return baseQty; // pieces or unknown unit — no conversion
 }
+
+/** Format a quantity number, trimming insignificant trailing zeros. */
+function fmtQty(n) { return parseFloat(n.toFixed(4)).toString(); }
 
 // ---- HTML escape to prevent XSS ----
 function esc(str) {
@@ -1921,7 +1924,7 @@ function updateCocinaProduccionPreview() {
       warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: no encontrado en inventario`);
     } else if (toBaseUnit(invItem.qty, invItem.unit) < neededBase) {
       const neededInInvUnit = fromBaseUnit(neededBase, invItem.unit);
-      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: necesitas ${neededInInvUnit.toFixed(4).replace(/\.?0+$/, '')} ${esc(invItem.unit)}, hay ${invItem.qty} ${esc(invItem.unit)}`);
+      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: necesitas ${fmtQty(neededInInvUnit)} ${esc(invItem.unit)}, hay ${invItem.qty} ${esc(invItem.unit)}`);
     }
   });
 
@@ -1937,7 +1940,7 @@ function updateCocinaProduccionPreview() {
     const neededBase = toBaseUnit(i.cantidad * tandas, i.unidad);
     if (invItem) {
       const deductInInvUnit = fromBaseUnit(neededBase, invItem.unit);
-      const deductStr = deductInInvUnit.toFixed(4).replace(/\.?0+$/, '');
+      const deductStr = fmtQty(deductInInvUnit);
       return `<li>${esc(i.nombre)}: <strong>${deductStr} ${esc(invItem.unit)}</strong> del inventario (receta: ${i.cantidad * tandas} ${esc(i.unidad)})</li>`;
     }
     return `<li>${esc(i.nombre)}: ${i.cantidad * tandas} ${esc(i.unidad)}</li>`;
