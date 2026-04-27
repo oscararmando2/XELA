@@ -62,14 +62,23 @@ const PRODUCTS = [
   { id: 'salsa',      name: 'Salsa',                     price: 35, unit: 'pieza',  emoji: '🫙' },
 ];
 
-// ---- Shared finished-product inventory pools for agua products ----
-// Maps POS product ID → { poolId: inventory item id, liters: liters deducted per unit sold }
-const SHARED_INVENTORY_MAP = {
-  jamaica_medio: { poolId: 'jamaica_litro', liters: 0.5 },
-  jamaica_litro: { poolId: 'jamaica_litro', liters: 1 },
-  moringa_medio: { poolId: 'moringa_litro', liters: 0.5 },
-  moringa_litro: { poolId: 'moringa_litro', liters: 1 },
-};
+// ---- Shared finished-product inventory pool resolver for agua products ----
+// Any product whose name starts with "Agua" automatically shares a single liter pool
+// by flavor (e.g. "Agua Jamaica ½ litro" and "Agua Jamaica 1 litro" both map to
+// the "jamaica_litro" inventory item).  No code changes needed when new flavors are added.
+//
+// Convention:
+//   product.id = "{flavorId}_medio"  →  pool: "{flavorId}_litro", deduct 0.5 L per unit
+//   product.id = "{flavorId}_litro"  →  pool: "{flavorId}_litro", deduct 1.0 L per unit
+//
+// Returns { poolId, liters } for agua products, or null for everything else.
+function getAguaPool(product) {
+  if (!product || !product.id || !product.name || !product.name.startsWith('Agua')) return null;
+  const flavorId = product.id.replace(/_medio$/, '').replace(/_litro$/, '');
+  const poolId   = flavorId + '_litro';
+  const liters   = (product.id.endsWith('_medio') || product.name.includes('½')) ? 0.5 : 1;
+  return { poolId, liters };
+}
 
 // ---- Predefined ingredients for Cocina & Costos ----
 const INGREDIENTS = [
@@ -960,8 +969,8 @@ function renderProductButtons() {
   if (!_loaded.inventory) { showSpinner('productButtons'); return; }
   const inventory = getData('inventory', []);
   const html = PRODUCTS.map(p => {
-    // Water products share one finished-product inventory pool (tracked in liters)
-    const sharedPool = SHARED_INVENTORY_MAP[p.id];
+    // Agua products share one finished-product inventory pool (tracked in liters)
+    const sharedPool = getAguaPool(p);
     const invItem = sharedPool
       ? inventory.find(i => i.id === sharedPool.poolId)
       : (inventory.find(i => i.id === p.id) || inventory.find(i => i.id.includes(p.id.split('_')[0])));
@@ -1242,9 +1251,10 @@ function confirmSale() {
   let inventoryChanged = false;
   const lowStockNames = [];
   ticket.items.forEach(item => {
-    const sharedPool = SHARED_INVENTORY_MAP[item.productId];
+    const product = PRODUCTS.find(p => p.id === item.productId);
+    const sharedPool = getAguaPool(product);
     if (sharedPool) {
-      // Water products: deduct fractional liters from shared finished-product pool
+      // Agua products: deduct fractional liters from shared finished-product pool
       const invIdx = inventory.findIndex(i => i.id === sharedPool.poolId);
       if (invIdx >= 0) {
         const newQty = Math.max(0, inventory[invIdx].qty - item.qty * sharedPool.liters);
@@ -1255,7 +1265,6 @@ function confirmSale() {
         }
       }
     } else {
-      const product = PRODUCTS.find(p => p.id === item.productId);
       const invIdx = inventory.findIndex(i => i.id === item.productId);
       if (invIdx >= 0 && product && inventory[invIdx].unit === product.unit) {
         const newQty = Math.max(0, inventory[invIdx].qty - item.qty);
