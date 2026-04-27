@@ -265,6 +265,31 @@ function setData(key, val) {
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
+// ---- Unit conversion helpers ----
+// Weight base: grams (g).  Volume base: millilitres (ml).  Pieces: unchanged.
+const WEIGHT_TO_GRAMS = { kg: 1000, g: 1, lb: 453.592, oz: 28.3495 };
+const VOLUME_TO_ML    = { l: 1000, lt: 1000, ltr: 1000, litro: 1000, litros: 1000,
+                          ml: 1, cc: 1, dl: 100 };
+
+/** Convert qty in the given unit to its canonical base unit value. */
+function toBaseUnit(qty, unit) {
+  const u = (unit || '').toLowerCase().trim();
+  if (WEIGHT_TO_GRAMS[u] !== undefined) return qty * WEIGHT_TO_GRAMS[u];
+  if (VOLUME_TO_ML[u]    !== undefined) return qty * VOLUME_TO_ML[u];
+  return qty; // pieces or unknown unit — no conversion
+}
+
+/** Convert a base-unit value back to the given target unit. */
+function fromBaseUnit(baseQty, unit) {
+  const u = (unit || '').toLowerCase().trim();
+  if (WEIGHT_TO_GRAMS[u] !== undefined) return baseQty / WEIGHT_TO_GRAMS[u];
+  if (VOLUME_TO_ML[u]    !== undefined) return baseQty / VOLUME_TO_ML[u];
+  return baseQty; // pieces or unknown unit — no conversion
+}
+
+/** Format a quantity number, trimming insignificant trailing zeros. */
+function fmtQty(n) { return parseFloat(n.toFixed(4)).toString(); }
+
 // ---- HTML escape to prevent XSS ----
 function esc(str) {
   return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -1888,29 +1913,18 @@ function updateCocinaProduccionPreview() {
 
   const inventory = getData('inventory', []);
 
-  // Convert a quantity to a canonical base unit for comparison.
-  // Weight → grams, Volume → millilitres, anything else → unchanged.
-  function toBaseQty(qty, unit) {
-    const u = (unit || '').toLowerCase().trim();
-    const weightMap = { kg: 1000, g: 1, lb: 453.592, oz: 28.3495 };
-    const volumeMap = { l: 1000, lt: 1000, ltr: 1000, litro: 1000, litros: 1000,
-                        ml: 1, cc: 1, dl: 100 };
-    if (weightMap[u] !== undefined) return qty * weightMap[u];
-    if (volumeMap[u] !== undefined) return qty * volumeMap[u];
-    return qty;
-  }
-
   const warnings = [];
   receta.ingredientes.forEach(ing => {
     const invItem = inventory.find(i =>
       i.name.toLowerCase() === ing.nombre.toLowerCase() ||
       i.id.toLowerCase() === ing.nombre.toLowerCase()
     );
-    const needed = ing.cantidad * tandas;
+    const neededBase = toBaseUnit(ing.cantidad * tandas, ing.unidad);
     if (!invItem) {
       warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: no encontrado en inventario`);
-    } else if (toBaseQty(invItem.qty, invItem.unit) < toBaseQty(needed, ing.unidad)) {
-      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: necesitas ${needed} ${esc(ing.unidad)}, hay ${invItem.qty} ${esc(invItem.unit)}`);
+    } else if (toBaseUnit(invItem.qty, invItem.unit) < neededBase) {
+      const neededInInvUnit = fromBaseUnit(neededBase, invItem.unit);
+      warnings.push(`⚠️ <em>${esc(ing.nombre)}</em>: necesitas ${fmtQty(neededInInvUnit)} ${esc(invItem.unit)}, hay ${invItem.qty} ${esc(invItem.unit)}`);
     }
   });
 
@@ -1918,9 +1932,19 @@ function updateCocinaProduccionPreview() {
     ? `<div class="prod-warnings">${warnings.join('<br>')}</div>`
     : '<div class="prod-ok">✅ Ingredientes suficientes en inventario</div>';
 
-  const ingList = receta.ingredientes.map(i =>
-    `<li>${esc(i.nombre)}: ${i.cantidad * tandas} ${esc(i.unidad)}</li>`
-  ).join('');
+  const ingList = receta.ingredientes.map(i => {
+    const invItem = inventory.find(inv =>
+      inv.name.toLowerCase() === i.nombre.toLowerCase() ||
+      inv.id.toLowerCase() === i.nombre.toLowerCase()
+    );
+    const neededBase = toBaseUnit(i.cantidad * tandas, i.unidad);
+    if (invItem) {
+      const deductInInvUnit = fromBaseUnit(neededBase, invItem.unit);
+      const deductStr = fmtQty(deductInInvUnit);
+      return `<li>${esc(i.nombre)}: <strong>${deductStr} ${esc(invItem.unit)}</strong> del inventario (receta: ${i.cantidad * tandas} ${esc(i.unidad)})</li>`;
+    }
+    return `<li>${esc(i.nombre)}: ${i.cantidad * tandas} ${esc(i.unidad)}</li>`;
+  }).join('');
 
   const fcColor = costo.foodCostPct != null
     ? (costo.foodCostPct <= 30 ? 'var(--sys-green)' : costo.foodCostPct <= 40 ? 'var(--sys-yellow)' : 'var(--sys-red)')
@@ -1948,7 +1972,7 @@ function confirmarCocinaProduccion() {
   const costoTotal = costo.costoTotal * tandas;
   const costoPorUnidad = costo.costoPorUnidadProducida;
 
-  // 1. Deduct ingredients from inventory
+  // 1. Deduct ingredients from inventory (normalize to base unit before subtracting)
   const inventory = getData('inventory', []);
   receta.ingredientes.forEach(ing => {
     const invIdx = inventory.findIndex(i =>
@@ -1956,8 +1980,12 @@ function confirmarCocinaProduccion() {
       i.id.toLowerCase() === ing.nombre.toLowerCase()
     );
     if (invIdx >= 0) {
-      const needed = ing.cantidad * tandas;
-      inventory[invIdx] = { ...inventory[invIdx], qty: Math.max(0, inventory[invIdx].qty - needed) };
+      const invItem = inventory[invIdx];
+      const neededBase = toBaseUnit(ing.cantidad * tandas, ing.unidad);
+      const currentBase = toBaseUnit(invItem.qty, invItem.unit);
+      const remainingBase = Math.max(0, currentBase - neededBase);
+      const remainingInInvUnit = fromBaseUnit(remainingBase, invItem.unit);
+      inventory[invIdx] = { ...invItem, qty: remainingInInvUnit };
     }
   });
 
